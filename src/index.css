@@ -12,7 +12,8 @@
   }
 }
 
-html, body {
+html,
+body {
   font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
@@ -24,7 +25,7 @@ html.dark body {
 }
 
 html.light body, html:not(.dark) body {
-  background-color: #f8fafc;
+  background-color: #f4f7fb;
   color: #0f172a;
 }
 
@@ -33,13 +34,16 @@ html.light body, html:not(.dark) body {
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: rgba(148, 163, 184, 0.25);
   border-radius: 9999px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 200, 83, 0.6);
 }

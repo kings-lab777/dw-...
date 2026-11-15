@@ -46,6 +46,105 @@ export const DashboardModule: React.FC = () => {
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto select-none">
       {/* ========================================================================= */}
+      {/* 0. ALPHA DASHBOARD KPI METRIC CARDS (From Screenshot 4) */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {/* Total User */}
+        <div className={`p-5 rounded-3xl border transition-all ${
+          darkMode ? 'bg-[#121622] border-slate-800' : 'bg-white border-slate-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)]'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </div>
+            <span className="text-xs font-bold text-slate-500">Total User</span>
+          </div>
+          <div className="flex items-baseline justify-between mt-3">
+            <span className={`text-2xl font-black tracking-tight ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+              35k+
+            </span>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center gap-0.5">
+              <span>↑</span> 67.8% <span className="text-slate-400 font-normal hidden xl:inline">Last month</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Total Clicks / Enquiries */}
+        <div className={`p-5 rounded-3xl border transition-all ${
+          darkMode ? 'bg-[#121622] border-slate-800' : 'bg-white border-slate-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)]'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                <circle cx="12" cy="12" r="10" />
+                <path d="m10 15 5-3-5-3v6Z" />
+              </svg>
+            </div>
+            <span className="text-xs font-bold text-slate-500">Total Clicks</span>
+          </div>
+          <div className="flex items-baseline justify-between mt-3">
+            <span className={`text-2xl font-black tracking-tight ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+              1.2m+
+            </span>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center gap-0.5">
+              <span>↑</span> 87.2% <span className="text-slate-400 font-normal hidden xl:inline">Last month</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Total Sales (₹ INR) */}
+        <div className={`p-5 rounded-3xl border transition-all ${
+          darkMode ? 'bg-[#121622] border-slate-800' : 'bg-white border-slate-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)]'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                <rect width="20" height="14" x="2" y="5" rx="2" />
+                <line x1="2" x2="22" y1="10" y2="10" />
+              </svg>
+            </div>
+            <span className="text-xs font-bold text-slate-500">Total Sales</span>
+          </div>
+          <div className="flex items-baseline justify-between mt-3">
+            <span className={`text-2xl font-black tracking-tight ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+              ₹3,265k+
+            </span>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center gap-0.5">
+              <span>↑</span> 92.4% <span className="text-slate-400 font-normal hidden xl:inline">Last month</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Realized Profit */}
+        <div className={`p-5 rounded-3xl border transition-all ${
+          darkMode ? 'bg-[#121622] border-slate-800' : 'bg-white border-slate-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)]'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                <path d="M12 2v20" />
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+              </svg>
+            </div>
+            <span className="text-xs font-bold text-slate-500">Realized Profit</span>
+          </div>
+          <div className="flex items-baseline justify-between mt-3">
+            <span className={`text-2xl font-black tracking-tight ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+              ₹18.40L
+            </span>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center gap-0.5">
+              <span>↑</span> 41.2% <span className="text-slate-400 font-normal hidden xl:inline">Last month</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
       {/* MAIN TOP SECTION: 2 COLUMNS (Left 8 cols, Right 4 cols) */}
       {/* ========================================================================= */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

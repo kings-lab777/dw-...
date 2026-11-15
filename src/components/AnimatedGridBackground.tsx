@@ -84,8 +84,8 @@ export function AnimatedGridBackground({ darkMode }: { darkMode: boolean }) {
 
   // Determine grid block background colors based on mode
   const blockBgClass = darkMode
-    ? 'bg-white/[0.08] dark:bg-white/[0.12]'
-    : 'bg-[#00311F]/[0.12]'; // Highly visible brand pine green block fill for light mode
+    ? 'bg-white/[0.06]'
+    : 'bg-blue-600/[0.03]'; // Ultra-clean subtle tint for light mode
 
   return (
     <div
@@ -110,7 +110,7 @@ export function AnimatedGridBackground({ darkMode }: { darkMode: boolean }) {
               rx={12} // Smooth corner radius for squircle-like premium look
               ry={12}
               fill="none"
-              stroke={darkMode ? 'rgba(255, 255, 255, 0.07)' : 'rgba(0, 49, 31, 0.085)'}
+              stroke={darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(15, 23, 42, 0.03)'}
               strokeWidth="1.2"
             />
           </pattern>

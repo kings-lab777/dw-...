@@ -112,14 +112,18 @@ const MainLayout: React.FC = () => {
   // Otherwise, render DigiWorku Commander (Internal Ops OS)
   return (
     <div className={`min-h-screen flex font-sans relative overflow-x-hidden select-none transition-colors duration-200 ${
-      darkMode ? 'bg-[#030712] text-slate-100' : 'bg-slate-50 text-slate-900'
+      darkMode ? 'bg-[#0a0d14] text-slate-100' : 'bg-[#f4f7fb] text-slate-900'
     }`}>
-      {/* Signature DigiWorku Animated Geometric Grid Background */}
+      {/* Signature Animated Geometric Grid Background */}
       <AnimatedGridBackground darkMode={darkMode} />
 
       {/* Ambient Radial Gradient Glows */}
-      <div className="fixed top-0 right-0 w-[500px] h-[500px] bg-[#00c853]/10 rounded-full blur-[140px] pointer-events-none z-0" />
-      <div className="fixed bottom-0 left-1/3 w-[450px] h-[450px] bg-blue-500/5 rounded-full blur-[160px] pointer-events-none z-0" />
+      <div className={`fixed top-0 right-0 w-[500px] h-[500px] rounded-full blur-[140px] pointer-events-none z-0 ${
+        darkMode ? 'bg-blue-500/10' : 'bg-blue-400/10'
+      }`} />
+      <div className={`fixed bottom-0 left-1/3 w-[450px] h-[450px] rounded-full blur-[160px] pointer-events-none z-0 ${
+        darkMode ? 'bg-purple-500/5' : 'bg-indigo-300/10'
+      }`} />
 
       {/* Fixed 14-Module Sidebar */}
       <Sidebar onTogglePortalMode={togglePanelMode} />

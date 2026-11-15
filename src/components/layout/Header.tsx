@@ -2,19 +2,18 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
 import {
-  Clock,
+  Search,
+  Mic,
+  Sun,
+  Moon,
+  Bell,
+  Settings,
+  Database,
+  Shield,
+  ChevronDown,
   Play,
   Square,
-  Database,
-  ChevronDown,
-  Shield,
-  CheckCircle2,
-  AlertTriangle,
-  RefreshCw,
-  Sparkles,
-  Globe,
-  Sun,
-  Moon
+  Globe
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -28,16 +27,17 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSupabaseModal, onTogglePor
     currentUser,
     switchRole,
     activeModule,
+    setActiveModule,
     isCheckedIn,
-    checkInTime,
     elapsedSeconds,
     toggleCheckIn,
-    isLateToday,
     darkMode,
-    toggleDarkMode
+    toggleDarkMode,
+    showToast
   } = useApp();
 
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const roles: { id: UserRole; label: string; desc: string }[] = [
     { id: 'super_admin', label: 'Super Admin', desc: 'Full root access to all modules & financials' },
@@ -57,119 +57,140 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSupabaseModal, onTogglePor
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const getModuleTitle = () => {
-    switch (activeModule) {
-      case 'dashboard':
-        return 'Executive Operations Command';
-      case 'crm':
-        return 'CRM & Client Leads Pipeline';
-      case 'projects':
-        return 'Projects & Milestone Engine';
-      case 'tasks':
-        return 'Kanban Workflow (Fokys Board)';
-      case 'qc':
-        return 'Quality Assurance & Delivery Gate';
-      case 'employees':
-        return 'Workforce Directory & KYC Vault';
-      case 'freelancers':
-        return 'Freelancer Talent & Disbursements';
-      case 'finance':
-        return 'Finance, Invoicing & P&L Ledger (₹)';
-      case 'attendance':
-        return 'Attendance & Live Shift Tracker';
-      case 'analytics':
-        return 'Performance & SLA Intelligence';
-      case 'ai':
-        return 'DigiWorku AI Assistant';
-      case 'settings':
-        return 'Service Catalogue & Enterprise Settings';
-      default:
-        return 'DigiWorku Commander';
-    }
-  };
-
   return (
-    <header className={`h-16 px-4 md:px-6 border-b flex items-center justify-between sticky top-0 z-30 backdrop-blur-md select-none transition-colors duration-200 ${
-      darkMode ? 'bg-[#0f1115]/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-xs'
+    <header className={`h-20 px-6 md:px-8 flex items-center justify-between sticky top-0 z-30 transition-colors duration-200 select-none ${
+      darkMode ? 'bg-[#0f121a]/90 backdrop-blur-md border-b border-slate-800' : 'bg-[#f4f7fb]/90 backdrop-blur-md'
     }`}>
-      {/* Title & Founder Badge */}
-      <div className="flex items-center gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className={`text-sm md:text-base font-extrabold tracking-tight ${
-              darkMode ? 'text-white' : 'text-slate-900'
-            }`}>
-              {getModuleTitle()}
-            </h2>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#00c853]/10 text-[#00c853] font-bold border border-[#00c853]/30 hidden sm:inline-block">
-              DigiWorku India (₹)
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-400 font-medium hidden sm:block">
-            Vir Kanwlia • Founder &amp; Executive Commander
-          </p>
-        </div>
+      {/* Left: Greeting matching Image 1 ("Hello, Shakib! 👋") */}
+      <div>
+        <h1 className={`text-xl font-bold tracking-tight flex items-center gap-2 ${
+          darkMode ? 'text-white' : 'text-slate-900'
+        }`}>
+          <span>Hello, Vir!</span>
+          <span>👋</span>
+        </h1>
+        <p className="text-xs text-slate-400 font-medium mt-0.5">
+          Welcome and Let's do checkouts your projects!
+        </p>
       </div>
 
-      {/* Right Controls: Shift Tracker, Role Switcher, Database Status, Theme */}
-      <div className="flex items-center gap-2 sm:gap-3">
-        {/* Live Attendance / Shift Tracker */}
+      {/* Right: Search bar with Mic, Theme, Bell, Settings, and Profile Avatar */}
+      <div className="flex items-center gap-3 sm:gap-4">
+        {/* Pill Search Box matching Image 1 */}
+        <div className="relative hidden md:flex items-center">
+          <div className={`flex items-center gap-2.5 px-4 py-2 rounded-full border transition-all ${
+            darkMode
+              ? 'bg-slate-800/80 border-slate-700 text-slate-200 focus-within:border-blue-500'
+              : 'bg-white border-slate-200/80 text-slate-700 focus-within:border-blue-500 shadow-xs'
+          }`}>
+            <Search className="w-4 h-4 text-slate-400 shrink-0" />
+            <input
+              type="text"
+              placeholder="Search"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="bg-transparent text-xs font-medium focus:outline-none w-44 placeholder:text-slate-400"
+            />
+            <button
+              onClick={() => showToast('🎤 Voice assistant ready (Listening...)', 'info')}
+              className="text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
+              title="Voice Search"
+            >
+              <Mic className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Live Shift Punch-In / Timer */}
         <button
           onClick={toggleCheckIn}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+          className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold transition-all cursor-pointer ${
             isCheckedIn
-              ? 'bg-rose-500/10 border-rose-500/30 text-rose-500 hover:bg-rose-500/20'
-              : 'bg-[#00c853]/10 border-[#00c853]/30 text-[#00c853] hover:bg-[#00c853]/20'
+              ? 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100'
+              : 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
           }`}
           title={isCheckedIn ? 'Click to End Active Shift' : 'Click to Punch-In Shift'}
         >
           {isCheckedIn ? (
             <>
-              <Square className="w-3.5 h-3.5 fill-current" />
-              <span className="font-mono">{formatElapsedTime(elapsedSeconds)}</span>
-              <span className="hidden md:inline text-[10px]">End Shift</span>
+              <Square className="w-3 h-3 fill-current" />
+              <span className="font-mono text-[11px]">{formatElapsedTime(elapsedSeconds)}</span>
             </>
           ) : (
             <>
-              <Play className="w-3.5 h-3.5 fill-current" />
-              <span>Punch In</span>
+              <Play className="w-3 h-3 fill-current" />
+              <span className="text-[11px]">Punch In</span>
             </>
           )}
         </button>
 
-        {/* Public Portal Switcher */}
-        {onTogglePortalMode && (
-          <button
-            onClick={onTogglePortalMode}
-            className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-              darkMode
-                ? 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
-                : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
-            }`}
-          >
-            <Globe className="w-3.5 h-3.5 text-[#00c853]" />
-            <span>Public Site</span>
-          </button>
-        )}
+        {/* Database Status Button */}
+        <button
+          onClick={onOpenSupabaseModal}
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 text-xs font-bold cursor-pointer"
+          title="Supabase Database Live"
+        >
+          <Database className="w-3 h-3" />
+          <span className="font-mono text-[10px]">DB Live</span>
+        </button>
 
-        {/* Role Switcher Dropdown */}
+        {/* Sun / Moon Theme Toggle */}
+        <button
+          onClick={toggleDarkMode}
+          className={`w-9 h-9 rounded-full border flex items-center justify-center transition-all cursor-pointer ${
+            darkMode
+              ? 'bg-slate-800 border-slate-700 text-amber-400 hover:text-white'
+              : 'bg-white border-slate-200 text-slate-500 hover:text-slate-900 shadow-xs'
+          }`}
+          title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        >
+          {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        </button>
+
+        {/* Bell Notifications with Red Dot */}
+        <button
+          onClick={() => setActiveModule('notifications')}
+          className={`w-9 h-9 rounded-full border flex items-center justify-center relative transition-all cursor-pointer ${
+            darkMode
+              ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+              : 'bg-white border-slate-200 text-slate-500 hover:text-slate-900 shadow-xs'
+          }`}
+          title="Notifications"
+        >
+          <Bell className="w-4 h-4" />
+          <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-rose-500" />
+        </button>
+
+        {/* Settings Icon */}
+        <button
+          onClick={() => setActiveModule('settings')}
+          className={`w-9 h-9 rounded-full border flex items-center justify-center transition-all cursor-pointer ${
+            darkMode
+              ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+              : 'bg-white border-slate-200 text-slate-500 hover:text-slate-900 shadow-xs'
+          }`}
+          title="System Settings"
+        >
+          <Settings className="w-4 h-4" />
+        </button>
+
+        {/* Profile Avatar with Role Dropdown */}
         <div className="relative">
           <button
             onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-              darkMode
-                ? 'bg-[#14171d] border-slate-800 text-white hover:border-[#00c853]/40'
-                : 'bg-white border-slate-200 text-slate-800 hover:border-[#00c853]/40 shadow-xs'
-            }`}
+            className="flex items-center gap-1.5 cursor-pointer focus:outline-none"
+            title="Profile & Operational Role"
           >
-            <Shield className="w-3.5 h-3.5 text-[#00c853]" />
-            <span className="capitalize">{currentRole.replace('_', ' ')}</span>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+            <img
+              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
+              alt="Vir Kanwlia"
+              className="w-9 h-9 rounded-full object-cover border-2 border-white shadow-xs"
+            />
           </button>
 
           {roleDropdownOpen && (
-            <div className={`absolute right-0 mt-2 w-72 rounded-2xl border shadow-2xl p-2 z-50 ${
-              darkMode ? 'bg-[#14171d] border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+            <div className={`absolute right-0 mt-3 w-72 rounded-3xl border shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150 ${
+              darkMode ? 'bg-[#14171d] border-slate-800 text-white' : 'bg-white border-slate-100 text-slate-900'
             }`}>
               <div className="px-3 py-2 text-[10px] font-black uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
                 Switch Operational Role
@@ -182,12 +203,12 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSupabaseModal, onTogglePor
                       switchRole(r.id);
                       setRoleDropdownOpen(false);
                     }}
-                    className={`w-full text-left p-2 rounded-xl text-xs transition-colors flex items-start gap-2.5 cursor-pointer ${
+                    className={`w-full text-left p-2.5 rounded-2xl text-xs transition-colors flex items-start gap-2.5 cursor-pointer ${
                       currentRole === r.id
-                        ? 'bg-[#00c853]/15 text-[#00c853] font-bold'
+                        ? 'bg-blue-50 text-blue-600 font-bold dark:bg-blue-900/40 dark:text-blue-400'
                         : darkMode
                         ? 'hover:bg-slate-800 text-slate-300'
-                        : 'hover:bg-slate-100 text-slate-700'
+                        : 'hover:bg-slate-50 text-slate-700'
                     }`}
                   >
                     <Shield className="w-4 h-4 mt-0.5 shrink-0" />
@@ -201,29 +222,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSupabaseModal, onTogglePor
             </div>
           )}
         </div>
-
-        {/* Database Status */}
-        <button
-          onClick={onOpenSupabaseModal}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-emerald-500/30 bg-[#00c853]/10 text-[#00c853] text-xs font-bold cursor-pointer"
-          title="Supabase Database Live"
-        >
-          <Database className="w-3.5 h-3.5" />
-          <span className="hidden md:inline font-mono text-[11px]">DB Live</span>
-        </button>
-
-        {/* Sun / Moon Theme Toggle */}
-        <button
-          onClick={toggleDarkMode}
-          className={`w-8 h-8 rounded-xl border flex items-center justify-center transition-all cursor-pointer ${
-            darkMode
-              ? 'bg-[#14171d] border-slate-800 text-amber-400 hover:text-white'
-              : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 shadow-xs'
-          }`}
-          title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-        >
-          {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-        </button>
       </div>
     </header>
   );
