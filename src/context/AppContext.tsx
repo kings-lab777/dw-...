@@ -261,34 +261,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     switch (module) {
       case 'dashboard':
         return true;
-      case 'employees':
-        return ['super_admin', 'admin', 'hr_manager', 'operations_manager'].includes(currentRole);
-      case 'attendance':
-        return true;
-      case 'tasks':
-        return true;
+      case 'leads':
+      case 'clients':
+      case 'proposals':
       case 'crm':
         return ['super_admin', 'admin', 'sales_manager', 'operations_manager', 'project_manager'].includes(currentRole);
       case 'projects':
+      case 'milestones':
+      case 'deliverables':
         return ['super_admin', 'admin', 'project_manager', 'operations_manager', 'team_member', 'qa_manager', 'freelancer'].includes(currentRole);
-      case 'freelancers':
-        return ['super_admin', 'admin', 'operations_manager', 'project_manager', 'freelancer'].includes(currentRole);
-      case 'finance':
-        return ['super_admin', 'admin', 'finance_manager'].includes(currentRole);
-      case 'chat':
+      case 'tasks':
         return true;
       case 'qc':
-        return ['super_admin', 'admin', 'qa_manager', 'project_manager', 'operations_manager', 'team_member'].includes(currentRole);
+        return ['super_admin', 'admin', 'qa_manager', 'qc_reviewer', 'project_manager', 'operations_manager', 'team_member'].includes(currentRole);
+      case 'employees':
+      case 'workload':
+        return ['super_admin', 'admin', 'hr_manager', 'operations_manager'].includes(currentRole);
+      case 'freelancers':
+        return ['super_admin', 'admin', 'operations_manager', 'project_manager', 'freelancer'].includes(currentRole);
+      case 'attendance':
+        return true;
+      case 'finance':
+      case 'invoices':
+      case 'payments':
+      case 'expenses':
+      case 'payouts':
+        return ['super_admin', 'admin', 'finance_manager'].includes(currentRole);
       case 'analytics':
         return ['super_admin', 'admin', 'operations_manager', 'sales_manager', 'finance_manager'].includes(currentRole);
       case 'ai':
-        return true;
       case 'notifications':
+      case 'documents':
+      case 'activity':
+      case 'chat':
         return true;
+      case 'users':
+      case 'departments':
+      case 'services':
+      case 'templates':
+      case 'audit':
       case 'settings':
         return ['super_admin', 'admin'].includes(currentRole);
       default:
-        return false;
+        return true;
     }
   };
 

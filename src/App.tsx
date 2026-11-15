@@ -15,14 +15,33 @@ import { AttendanceModule } from './components/modules/AttendanceModule';
 import { AnalyticsModule } from './components/modules/AnalyticsModule';
 import { AiAssistantModule } from './components/modules/AiAssistantModule';
 import { NotificationsModule } from './components/modules/NotificationsModule';
+import { DocumentsModule } from './components/modules/DocumentsModule';
+import { ActivityModule } from './components/modules/ActivityModule';
 import { SettingsModule } from './components/modules/SettingsModule';
 import { PublicPortal } from './components/portal/PublicPortal';
 import { SupabaseConfigModal } from './components/modals/SupabaseConfigModal';
+import { CommandPaletteModal } from './components/modals/CommandPaletteModal';
+import { QuickCreateModal } from './components/modals/QuickCreateModal';
 import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
   const { activeModule, toast, showToast, darkMode } = useApp();
   const [supabaseModalOpen, setSupabaseModalOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
+  const [quickCreateType, setQuickCreateType] = useState<string>('task');
+
+  // Global Keyboard Listener for Ctrl+K / Cmd+K
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Panel Mode: 'commander' (Internal Ops OS) vs 'portal' (Public Ecosystem Portal)
   const [panelMode, setPanelMode] = useState<'commander' | 'portal'>(() => {
@@ -39,38 +58,62 @@ const MainLayout: React.FC = () => {
     setPanelMode(next);
     showToast(
       next === 'portal'
-        ? '🌐 Switched to DigiWorku Public Ecosystem Portal'
-        : '⚡ Switched to DigiWorku Commander Operations OS',
+        ? 'Switched to DigiWorku Public Ecosystem Portal'
+        : 'Switched to DigiWorku Commander Operations OS',
       'info'
     );
+  };
+
+  const openQuickCreate = (type: string = 'task') => {
+    setQuickCreateType(type);
+    setQuickCreateOpen(true);
   };
 
   const renderModule = () => {
     switch (activeModule) {
       case 'dashboard':
         return <DashboardModule />;
+      case 'leads':
+      case 'clients':
+      case 'proposals':
+      case 'crm':
+        return <CrmModule />;
+      case 'projects':
+      case 'milestones':
+      case 'deliverables':
+        return <ProjectsModule />;
       case 'tasks':
         return <TasksModule />;
       case 'employees':
+      case 'workload':
         return <EmployeesModule />;
-      case 'projects':
-        return <ProjectsModule />;
-      case 'crm':
-        return <CrmModule />;
-      case 'finance':
-        return <FinanceModule />;
       case 'freelancers':
         return <FreelancersModule />;
-      case 'qc':
-        return <QcModule />;
       case 'attendance':
         return <AttendanceModule />;
+      case 'qc':
+        return <QcModule />;
+      case 'finance':
+      case 'invoices':
+      case 'payments':
+      case 'expenses':
+      case 'payouts':
+        return <FinanceModule />;
       case 'analytics':
         return <AnalyticsModule />;
       case 'ai':
         return <AiAssistantModule />;
       case 'notifications':
         return <NotificationsModule />;
+      case 'documents':
+        return <DocumentsModule />;
+      case 'activity':
+        return <ActivityModule />;
+      case 'users':
+      case 'departments':
+      case 'services':
+      case 'templates':
+      case 'audit':
       case 'settings':
         return <SettingsModule />;
       default:
@@ -78,14 +121,14 @@ const MainLayout: React.FC = () => {
     }
   };
 
-  // If in Public Portal mode, render the full DigiWorku customer-facing platform
+  // If in Public Portal mode, render the full customer-facing website
   if (panelMode === 'portal') {
     return (
       <div className="relative min-h-screen">
         <PublicPortal
           onOpenCommander={() => {
             setPanelMode('commander');
-            showToast('⚡ Entered DigiWorku Commander Operations OS', 'success');
+            showToast('Entered DigiWorku Commander Operations OS', 'success');
           }}
         />
 
@@ -125,8 +168,12 @@ const MainLayout: React.FC = () => {
         darkMode ? 'bg-purple-500/5' : 'bg-indigo-300/10'
       }`} />
 
-      {/* Fixed 14-Module Sidebar */}
-      <Sidebar onTogglePortalMode={togglePanelMode} />
+      {/* 8-Group Linear-Style Sidebar */}
+      <Sidebar
+        onTogglePortalMode={togglePanelMode}
+        onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+        onOpenQuickCreate={() => openQuickCreate('task')}
+      />
 
       {/* Main Viewport Content Area */}
       <div className="flex-1 md:ml-64 flex flex-col min-w-0 min-h-screen relative z-10">
@@ -134,6 +181,8 @@ const MainLayout: React.FC = () => {
         <Header
           onOpenSupabaseModal={() => setSupabaseModalOpen(true)}
           onTogglePortalMode={togglePanelMode}
+          onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+          onOpenQuickCreate={() => openQuickCreate('task')}
         />
 
         {/* Active Module Canvas */}
@@ -141,6 +190,20 @@ const MainLayout: React.FC = () => {
           {renderModule()}
         </main>
       </div>
+
+      {/* Keyboard-Accessible Command Palette Modal (Ctrl + K) */}
+      <CommandPaletteModal
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onOpenQuickCreate={(type) => openQuickCreate(type || 'task')}
+      />
+
+      {/* Unified Quick Create Modal */}
+      <QuickCreateModal
+        isOpen={quickCreateOpen}
+        initialType={quickCreateType}
+        onClose={() => setQuickCreateOpen(false)}
+      />
 
       {/* Supabase Production Integration Modal */}
       <SupabaseConfigModal

@@ -13,19 +13,43 @@ export type UserRole =
 
 export type NavModule =
   | 'dashboard'
-  | 'employees'
-  | 'attendance'
-  | 'tasks'
+  // Business Development
+  | 'leads'
+  | 'clients'
+  | 'proposals'
   | 'crm'
+  // Project Operations
   | 'projects'
-  | 'freelancers'
-  | 'finance'
-  | 'chat'
+  | 'tasks'
+  | 'milestones'
   | 'qc'
+  | 'deliverables'
+  // Workforce
+  | 'employees'
+  | 'freelancers'
+  | 'attendance'
+  | 'workload'
+  // Finance
+  | 'finance'
+  | 'invoices'
+  | 'payments'
+  | 'expenses'
+  | 'payouts'
+  // Intelligence
   | 'analytics'
   | 'ai'
+  // Workspace
   | 'notifications'
-  | 'settings';
+  | 'documents'
+  | 'activity'
+  // Administration
+  | 'users'
+  | 'departments'
+  | 'services'
+  | 'templates'
+  | 'audit'
+  | 'settings'
+  | 'chat';
 
 // ==========================================
 // 1. DIGIWORKU SERVICE CATALOGUE (13 Services)
