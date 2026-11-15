@@ -1,0 +1,49 @@
+{
+  "inquiries": [],
+  "leads": [],
+  "clients": [],
+  "projects": [
+    {
+      "id": "proj_1",
+      "name": "Nordic Living E-Commerce & Checkout Suite",
+      "code": "DW-PRJ-2026-001",
+      "clientId": "c1",
+      "clientName": "Nordic Living Europe AB",
+      "serviceCategory": "website_development",
+      "status": "active",
+      "startDate": "2026-10-01",
+      "endDate": "2026-12-15",
+      "budget": 1850000,
+      "spent": 920000,
+      "currency": "INR",
+      "deliveryAuthorized": false,
+      "progress": 68
+    },
+    {
+      "id": "proj_2",
+      "name": "Apex Core Banking Mobile App & Security Audit",
+      "code": "DW-PRJ-2026-002",
+      "clientId": "c2",
+      "clientName": "Apex Financial Technologies Ltd.",
+      "serviceCategory": "mobile_app_development",
+      "status": "active",
+      "startDate": "2026-09-15",
+      "endDate": "2026-11-30",
+      "budget": 2400000,
+      "spent": 1450000,
+      "currency": "INR",
+      "deliveryAuthorized": false,
+      "progress": 82
+    }
+  ],
+  "tasks": [],
+  "qcReviews": [],
+  "invoices": [],
+  "payouts": [],
+  "expenses": [],
+  "employees": [],
+  "freelancers": [],
+  "leaves": [],
+  "attendance": [],
+  "chatMessages": []
+}

@@ -6,6 +6,7 @@
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
+    "server": "node server/index.js",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "build:electron": "electron .",
@@ -19,6 +20,9 @@
     "@capacitor/core": "^6.2.0",
     "@supabase/supabase-js": "^2.48.1",
     "clsx": "^2.1.1",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
     "lucide-react": "^0.475.0",
     "motion": "^14.14.0",
     "react": "^18.3.1",
@@ -26,6 +30,8 @@
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/node": "^22.13.4",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",

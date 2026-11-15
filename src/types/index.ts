@@ -7,6 +7,7 @@ export type UserRole =
   | 'sales_manager'
   | 'team_member'
   | 'qa_manager'
+  | 'qc_reviewer'
   | 'finance_manager'
   | 'freelancer';
 

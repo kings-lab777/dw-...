@@ -2,8 +2,8 @@ import { createClient } from '@supabase/supabase-js';
 
 // Default Supabase project specified in requirements
 const DEFAULT_SUPABASE_URL = 'https://rjxbdjgagizjmjwnlbxx.supabase.co';
-// Fallback anon key if not provided in environment
-const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.dummy-token-digiworku-commander-internal';
+// Live publishable anon key from DigiWorku
+const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_v-Wt6Skez4RmaQOUq-faCA_zHG-H8Au';
 
 // Allow runtime override via localStorage or Vite env
 export const getSupabaseConfig = () => {
