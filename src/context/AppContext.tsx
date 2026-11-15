@@ -13,6 +13,8 @@ import {
   Project,
   ProjectMilestone,
   Freelancer,
+  FreelancerPayout,
+  BusinessExpense,
   PayrollRecord,
   InvoiceRecord,
   FinancialSummary,
@@ -23,16 +25,21 @@ import {
   AIMessage,
   AppNotification,
   AuditLog,
-  CompanySettings
+  CompanySettings,
+  ServiceItem
 } from '../types';
 import {
+  INITIAL_SERVICES,
   INITIAL_EMPLOYEES,
   INITIAL_ATTENDANCE,
   INITIAL_LEAVES,
   INITIAL_TASKS,
   INITIAL_CLIENTS,
+  INITIAL_QUOTES,
   INITIAL_PROJECTS,
   INITIAL_FREELANCERS,
+  INITIAL_FREELANCER_PAYOUTS,
+  INITIAL_EXPENSES,
   INITIAL_PAYROLL,
   INITIAL_INVOICES,
   INITIAL_FINANCE_SUMMARY,
@@ -45,6 +52,8 @@ import {
   INITIAL_COMPANY_SETTINGS
 } from '../data/mockData';
 
+export type DateFilterOption = 'today' | '7d' | '30d' | 'this_month' | 'last_month' | 'quarter' | 'year' | 'custom';
+
 interface AppContextType {
   // RBAC & User
   currentRole: UserRole;
@@ -54,7 +63,16 @@ interface AppContextType {
   setActiveModule: (mod: NavModule) => void;
   hasAccessTo: (module: NavModule) => boolean;
 
-  // Attendance
+  // Date Filtering (Executive Dashboard)
+  dateFilter: DateFilterOption;
+  setDateFilter: (filter: DateFilterOption) => void;
+
+  // 13 DigiWorku Services
+  services: ServiceItem[];
+  toggleServiceEnabled: (serviceId: string) => void;
+  updateServiceItem: (service: ServiceItem) => void;
+
+  // Attendance & Time
   isCheckedIn: boolean;
   checkInTime: string | null;
   elapsedSeconds: number;
@@ -66,24 +84,27 @@ interface AppContextType {
   reviewLeaveRequest: (leaveId: string, status: 'approved' | 'rejected') => void;
   addAttendanceCorrection: (recordId: string, correctedTime: string, reason: string) => void;
 
-  // Tasks
+  // Tasks & Workflow (Fokys style)
   tasks: InternalTask[];
   updateTaskStatus: (taskId: string, status: TaskStatus) => void;
   toggleTaskChecklist: (taskId: string, checkId: string) => void;
   addTask: (task: Omit<InternalTask, 'id' | 'createdAt'>) => void;
   updateTask: (task: InternalTask) => void;
   deleteTask: (taskId: string) => void;
+  submitTaskWork: (taskId: string, submissionUrl: string, notes: string) => void;
 
-  // CRM & Clients
+  // CRM & Client Management
   clients: ClientLead[];
   updateClientStatus: (clientId: string, status: LeadStatus) => void;
   addClient: (client: Omit<ClientLead, 'id' | 'activityHistory'>) => void;
   updateClient: (client: ClientLead) => void;
   deleteClient: (clientId: string) => void;
+  convertLeadToClient: (leadId: string) => ClientLead;
   quotes: ClientQuote[];
   addQuote: (quote: ClientQuote) => void;
+  convertProposalToProject: (quoteId: string) => Project;
 
-  // Projects
+  // Project Management Engine
   projects: Project[];
   updateMilestoneStatus: (projectId: string, milestoneId: string, status: ProjectMilestone['status']) => void;
   addProject: (proj: Omit<Project, 'id'>) => void;
@@ -91,41 +112,49 @@ interface AppContextType {
   deleteProject: (projectId: string) => void;
   addMilestone: (projectId: string, milestone: Omit<ProjectMilestone, 'id' | 'projectId'>) => void;
 
-  // Freelancers
+  // Freelancers & Mobile Payouts
   freelancers: Freelancer[];
   updateFreelancerStatus: (id: string, status: Freelancer['status']) => void;
   addFreelancer: (fl: Omit<Freelancer, 'id'>) => void;
   updateFreelancer: (fl: Freelancer) => void;
   deleteFreelancer: (id: string) => void;
   allocateFreelancerToProject: (freelancerId: string, projectId: string) => void;
+  freelancerPayouts: FreelancerPayout[];
+  releaseFreelancerPayout: (payoutId: string) => void;
+  requestFreelancerPayout: (payout: Omit<FreelancerPayout, 'id'>) => void;
 
-  // Finance & Payroll (Strictly Restricted)
+  // Finance, Invoices & Installments
   payroll: PayrollRecord[];
   invoices: InvoiceRecord[];
+  expenses: BusinessExpense[];
   financialSummary: FinancialSummary;
   processPayrollItem: (id: string) => void;
-  createInvoice: (inv: Omit<InvoiceRecord, 'id'>) => void;
+  createInvoice: (inv: Omit<InvoiceRecord, 'id' | 'payments' | 'amountPaid'>) => void;
   updateInvoice: (inv: InvoiceRecord) => void;
   deleteInvoice: (id: string) => void;
-  addExpense: (expense: { description: string; amount: number; category: string; date: string }) => void;
+  recordInvoicePayment: (invoiceId: string, amount: number, paymentMethod: InvoiceRecord['payments'][0]['paymentMethod'], notes?: string) => void;
+  addBusinessExpense: (expense: Omit<BusinessExpense, 'id'>) => void;
+  addExpense: (expense: { description: string; amount: number; category: string; date: string }) => void; // backwards compat
 
-  // Internal Communication
+  // Internal Collaboration
   channels: ChatChannel[];
   activeChannelId: string;
   setActiveChannelId: (id: string) => void;
   messages: ChatMessage[];
   sendMessage: (channelId: string, text: string) => void;
 
-  // Quality Control Engine
+  // Quality Control (QC) Gate
   qcReviews: QCReview[];
   submitQcDecision: (reviewId: string, decision: 'approve' | 'request_revisions' | 'reject', comments: string) => void;
   toggleQcChecklistItem: (reviewId: string, checkId: string) => void;
   submitDeliverableForQC: (projectId: string, milestoneTitle: string, deliverableUrl: string, comments: string) => void;
+  approveQcAndAuthorizeDelivery: (reviewId: string, projectId: string) => void;
+  requestQcRevision: (reviewId: string, revisionNotes: string) => void;
 
-  // Performance & Analytics
+  // Analytics
   performance: PerformanceMetrics;
 
-  // Employee Directory
+  // Employees Directory
   employees: Employee[];
   toggleEmployeeActive: (id: string) => void;
   addEmployee: (emp: Omit<Employee, 'id'>) => void;
@@ -151,11 +180,9 @@ interface AppContextType {
   companySettings: CompanySettings;
   updateCompanySettings: (settings: Partial<CompanySettings>) => void;
 
-  // Theme (Light / Dark)
+  // Theme & Toast
   darkMode: boolean;
   toggleDarkMode: () => void;
-
-  // Notification Toast
   toast: { message: string; type: 'success' | 'warning' | 'error' | 'info' } | null;
   showToast: (message: string, type?: 'success' | 'warning' | 'error' | 'info') => void;
 }
@@ -163,10 +190,10 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Theme State (Default to Light Mode matching digiworku.in)
+  // Theme State (Default: Light Mode matching digiworku.in)
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('digiworku_dark_mode');
-    return saved !== null ? saved === 'true' : false; // Default: Light Mode
+    return saved !== null ? saved === 'true' : false;
   });
 
   useEffect(() => {
@@ -185,304 +212,159 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(!darkMode ? '🌙 Dark Mode Activated' : '☀️ Light Mode Activated (DigiWorku Theme)', 'info');
   };
 
-  // Active Role and Current User
+  // Date Filter for Executive Dashboard
+  const [dateFilter, setDateFilter] = useState<DateFilterOption>('this_month');
+
+  // Role and Current User
   const [currentRole, setCurrentRole] = useState<UserRole>('super_admin');
-  
-  // Persistent Employees
   const [employees, setEmployees] = useState<Employee[]>(() => {
-    const saved = localStorage.getItem('digiworku_employees_v3');
+    const saved = localStorage.getItem('digiworku_employees_v4');
     return saved ? JSON.parse(saved) : INITIAL_EMPLOYEES;
   });
   useEffect(() => {
-    localStorage.setItem('digiworku_employees_v3', JSON.stringify(employees));
+    localStorage.setItem('digiworku_employees_v4', JSON.stringify(employees));
   }, [employees]);
 
   const [currentUser, setCurrentUser] = useState<Employee>(employees[0]);
+
+  const switchRole = (role: UserRole) => {
+    setCurrentRole(role);
+    const matched = employees.find((e) => e.role === role);
+    if (matched) {
+      setCurrentUser(matched);
+    } else if (role === 'freelancer') {
+      setCurrentUser({
+        id: 'fl-temp',
+        fullName: 'Sofia Al-Mansoor',
+        email: 'sofia.designs@freelancer.digiworku.in',
+        role: 'freelancer',
+        department: 'External Freelance Network',
+        designation: 'Senior Product Designer',
+        avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
+        phone: '+91 99111 88223',
+        skills: ['Figma', 'UI Animation', 'Tailwind CSS'],
+        kycStatus: 'verified',
+        kycDocuments: [],
+        isActive: true,
+        joinDate: '2024-01-01',
+        baseSalary: 0
+      });
+    }
+    showToast(`Role switched to ${role.replace('_', ' ').toUpperCase()}`, 'info');
+    logAuditEvent('Role Switch', 'settings', `User switched simulated workspace role to: ${role}`);
+  };
+
   const [activeModule, setActiveModule] = useState<NavModule>('dashboard');
 
-  // Attendance State
-  const [isCheckedIn, setIsCheckedIn] = useState<boolean>(true);
-  const [checkInTime, setCheckInTime] = useState<string | null>('08:55 AM');
-  const [elapsedSeconds, setElapsedSeconds] = useState<number>(18240);
-  const [isLateToday, setIsLateToday] = useState<boolean>(false);
-
-  // Persistent Attendance Records
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() => {
-    const saved = localStorage.getItem('digiworku_attendance_v3');
-    return saved ? JSON.parse(saved) : INITIAL_ATTENDANCE;
-  });
-  useEffect(() => {
-    localStorage.setItem('digiworku_attendance_v3', JSON.stringify(attendanceRecords));
-  }, [attendanceRecords]);
-
-  // Persistent Leaves
-  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(() => {
-    const saved = localStorage.getItem('digiworku_leaves_v3');
-    return saved ? JSON.parse(saved) : INITIAL_LEAVES;
-  });
-  useEffect(() => {
-    localStorage.setItem('digiworku_leaves_v3', JSON.stringify(leaveRequests));
-  }, [leaveRequests]);
-
-  // Persistent Tasks
-  const [tasks, setTasks] = useState<InternalTask[]>(() => {
-    const saved = localStorage.getItem('digiworku_tasks_v3');
-    return saved ? JSON.parse(saved) : INITIAL_TASKS;
-  });
-  useEffect(() => {
-    localStorage.setItem('digiworku_tasks_v3', JSON.stringify(tasks));
-  }, [tasks]);
-
-  // Persistent Clients & Quotes
-  const [clients, setClients] = useState<ClientLead[]>(() => {
-    const saved = localStorage.getItem('digiworku_clients_v3');
-    return saved ? JSON.parse(saved) : INITIAL_CLIENTS;
-  });
-  useEffect(() => {
-    localStorage.setItem('digiworku_clients_v3', JSON.stringify(clients));
-  }, [clients]);
-
-  const [quotes, setQuotes] = useState<ClientQuote[]>(() => {
-    const saved = localStorage.getItem('digiworku_quotes_v3');
-    return saved ? JSON.parse(saved) : [];
-  });
-  useEffect(() => {
-    localStorage.setItem('digiworku_quotes_v3', JSON.stringify(quotes));
-  }, [quotes]);
-
-  // Persistent Projects
-  const [projects, setProjects] = useState<Project[]>(() => {
-    const saved = localStorage.getItem('digiworku_projects_v3');
-    return saved ? JSON.parse(saved) : INITIAL_PROJECTS;
-  });
-  useEffect(() => {
-    localStorage.setItem('digiworku_projects_v3', JSON.stringify(projects));
-  }, [projects]);
-
-  // Persistent Freelancers
-  const [freelancers, setFreelancers] = useState<Freelancer[]>(() => {
-    const saved = localStorage.getItem('digiworku_freelancers_v3');
-    return saved ? JSON.parse(saved) : INITIAL_FREELANCERS;
-  });
-  useEffect(() => {
-    localStorage.setItem('digiworku_freelancers_v3', JSON.stringify(freelancers));
-  }, [freelancers]);
-
-  // Persistent Finance & Payroll
-  const [payroll, setPayroll] = useState<PayrollRecord[]>(() => {
-    const saved = localStorage.getItem('digiworku_payroll_v3');
-    return saved ? JSON.parse(saved) : INITIAL_PAYROLL;
-  });
-  useEffect(() => {
-    localStorage.setItem('digiworku_payroll_v3', JSON.stringify(payroll));
-  }, [payroll]);
-
-  const [invoices, setInvoices] = useState<InvoiceRecord[]>(() => {
-    const saved = localStorage.getItem('digiworku_invoices_v3');
-    return saved ? JSON.parse(saved) : INITIAL_INVOICES;
-  });
-  useEffect(() => {
-    localStorage.setItem('digiworku_invoices_v3', JSON.stringify(invoices));
-  }, [invoices]);
-
-  const [financialSummary, setFinancialSummary] = useState<FinancialSummary>(INITIAL_FINANCE_SUMMARY);
-
-  // Persistent Chat
-  const [channels, setChannels] = useState<ChatChannel[]>(INITIAL_CHANNELS);
-  const [activeChannelId, setActiveChannelId] = useState<string>('announcements');
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    const saved = localStorage.getItem('digiworku_messages_v3');
-    return saved ? JSON.parse(saved) : INITIAL_MESSAGES;
-  });
-  useEffect(() => {
-    localStorage.setItem('digiworku_messages_v3', JSON.stringify(messages));
-  }, [messages]);
-
-  // Persistent QC Reviews
-  const [qcReviews, setQcReviews] = useState<QCReview[]>(() => {
-    const saved = localStorage.getItem('digiworku_qc_reviews_v3');
-    return saved ? JSON.parse(saved) : INITIAL_QC_REVIEWS;
-  });
-  useEffect(() => {
-    localStorage.setItem('digiworku_qc_reviews_v3', JSON.stringify(qcReviews));
-  }, [qcReviews]);
-
-  const [performance, setPerformance] = useState<PerformanceMetrics>(INITIAL_PERFORMANCE);
-
-  // Persistent Notifications
-  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
-    const saved = localStorage.getItem('digiworku_notifications_v3');
-    return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
-  });
-  useEffect(() => {
-    localStorage.setItem('digiworku_notifications_v3', JSON.stringify(notifications));
-  }, [notifications]);
-
-  // Persistent Audit Logs
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
-    const saved = localStorage.getItem('digiworku_audit_logs_v3');
-    return saved ? JSON.parse(saved) : INITIAL_AUDIT_LOGS;
-  });
-  useEffect(() => {
-    localStorage.setItem('digiworku_audit_logs_v3', JSON.stringify(auditLogs));
-  }, [auditLogs]);
-
-  // Persistent Company Settings
-  const [companySettings, setCompanySettings] = useState<CompanySettings>(() => {
-    const saved = localStorage.getItem('digiworku_company_settings_v3');
-    return saved ? JSON.parse(saved) : INITIAL_COMPANY_SETTINGS;
-  });
-  useEffect(() => {
-    localStorage.setItem('digiworku_company_settings_v3', JSON.stringify(companySettings));
-  }, [companySettings]);
-
-  // AI Assistant State
-  const [aiMessages, setAiMessages] = useState<AIMessage[]>([
-    {
-      id: 'ai-welcome',
-      sender: 'assistant',
-      text: 'Greetings, Commander. I am your DigiWorku Operations Intelligence agent (powered by Gemini Flash). I am monitoring all 12 operational modules, task velocities, delayed project radars, and financial ledgers. How can I assist you today?',
-      timestamp: '09:00 AM',
-      suggestions: [
-        'Which projects are currently delayed?',
-        'Summarize sprint velocity for Sprint 44',
-        'Show team members with spare capacity',
-        'Draft client status email for Nordic Living'
-      ]
-    }
-  ]);
-  const [isAITyping, setIsAITyping] = useState<boolean>(false);
-
-  // Toast Notification
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'warning' | 'error' | 'info' } | null>(null);
-
-  const showToast = (message: string, type: 'success' | 'warning' | 'error' | 'info' = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => {
-      setToast(null);
-    }, 4000);
-  };
-
-  // Stopwatch for Attendance
-  useEffect(() => {
-    let interval: any = null;
-    if (isCheckedIn) {
-      interval = setInterval(() => {
-        setElapsedSeconds((prev) => prev + 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isCheckedIn]);
-
-  // Helper for logging audit events
-  const logAuditEvent = (action: string, module: NavModule, details: string, status: 'success' | 'warning' | 'error' = 'success') => {
-    if (!companySettings.enableAuditLogging) return;
-    const newLog: AuditLog = {
-      id: `aud-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
-      actorId: currentUser.id,
-      actorName: currentUser.fullName,
-      actorRole: currentRole,
-      action,
-      module,
-      details,
-      status
-    };
-    setAuditLogs((prev) => [newLog, ...prev]);
-  };
-
-  // Sync Current User when Role changes
-  const switchRole = (newRole: UserRole) => {
-    setCurrentRole(newRole);
-    const matchingEmp = employees.find((e) => e.role === newRole) || employees[0];
-    setCurrentUser(matchingEmp);
-
-    const allowed = hasAccessToRole(newRole, activeModule);
-    if (!allowed) {
-      setActiveModule(newRole === 'freelancer' ? 'tasks' : 'dashboard');
-    }
-
-    logAuditEvent('Role Switch', 'dashboard', `Switched active perspective to: ${formatRoleName(newRole)}`);
-    showToast(`Switched active perspective to: ${formatRoleName(newRole)} (${matchingEmp.fullName})`, 'info');
-  };
-
-  const formatRoleName = (role: UserRole): string => {
-    return role.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-  };
-
-  // RBAC Permission Engine (8-9 Roles + All 14 Navigation Modules)
-  const hasAccessToRole = (role: UserRole, mod: NavModule): boolean => {
-    switch (role) {
-      case 'super_admin':
-      case 'admin':
-        return true; // Full access across all 14 modules
-      case 'finance_manager':
-        return ['dashboard', 'finance', 'projects', 'crm', 'freelancers', 'chat', 'ai', 'notifications', 'settings'].includes(mod);
-      case 'hr_manager':
-        return ['dashboard', 'employees', 'attendance', 'chat', 'ai', 'notifications', 'settings'].includes(mod);
-      case 'project_manager':
-        return ['dashboard', 'tasks', 'projects', 'freelancers', 'qc', 'analytics', 'chat', 'ai', 'notifications'].includes(mod);
-      case 'sales_manager':
-        return ['dashboard', 'crm', 'projects', 'analytics', 'chat', 'ai', 'notifications'].includes(mod);
-      case 'qa_manager':
-        return ['dashboard', 'qc', 'tasks', 'projects', 'chat', 'ai', 'notifications'].includes(mod);
-      case 'team_member':
-        // STRICT RULE: Team members NEVER have access to salaries, client financial figures, or admin settings
-        return ['tasks', 'attendance', 'chat', 'ai', 'notifications'].includes(mod);
-      case 'freelancer':
-        // Freelancer dedicated portal: own tasks, submit deliverables, chat
-        return ['tasks', 'chat', 'ai', 'notifications'].includes(mod);
+  const hasAccessTo = (module: NavModule): boolean => {
+    if (currentRole === 'super_admin' || currentRole === 'admin') return true;
+    switch (module) {
+      case 'dashboard':
+        return true;
+      case 'employees':
+        return ['super_admin', 'admin', 'hr_manager', 'operations_manager'].includes(currentRole);
+      case 'attendance':
+        return true;
+      case 'tasks':
+        return true;
+      case 'crm':
+        return ['super_admin', 'admin', 'sales_manager', 'operations_manager', 'project_manager'].includes(currentRole);
+      case 'projects':
+        return ['super_admin', 'admin', 'project_manager', 'operations_manager', 'team_member', 'qa_manager', 'freelancer'].includes(currentRole);
+      case 'freelancers':
+        return ['super_admin', 'admin', 'operations_manager', 'project_manager', 'freelancer'].includes(currentRole);
+      case 'finance':
+        return ['super_admin', 'admin', 'finance_manager'].includes(currentRole);
+      case 'chat':
+        return true;
+      case 'qc':
+        return ['super_admin', 'admin', 'qa_manager', 'project_manager', 'operations_manager', 'team_member'].includes(currentRole);
+      case 'analytics':
+        return ['super_admin', 'admin', 'operations_manager', 'sales_manager', 'finance_manager'].includes(currentRole);
+      case 'ai':
+        return true;
+      case 'notifications':
+        return true;
+      case 'settings':
+        return ['super_admin', 'admin'].includes(currentRole);
       default:
         return false;
     }
   };
 
-  const hasAccessTo = (mod: NavModule): boolean => {
-    return hasAccessToRole(currentRole, mod);
+  // 13 DigiWorku Services Catalogue
+  const [services, setServices] = useState<ServiceItem[]>(() => {
+    const saved = localStorage.getItem('digiworku_services_v4');
+    return saved ? JSON.parse(saved) : INITIAL_SERVICES;
+  });
+  useEffect(() => {
+    localStorage.setItem('digiworku_services_v4', JSON.stringify(services));
+  }, [services]);
+
+  const toggleServiceEnabled = (serviceId: string) => {
+    setServices((prev) =>
+      prev.map((s) => (s.id === serviceId ? { ...s, isEnabled: !s.isEnabled } : s))
+    );
+    const target = services.find((s) => s.id === serviceId);
+    showToast(`Service "${target?.name}" ${target?.isEnabled ? 'disabled' : 'enabled'} in catalogue`, 'info');
+    logAuditEvent('Service Status Toggle', 'settings', `Toggled service ${target?.name}`);
   };
 
-  // Attendance Punch In / Out
+  const updateServiceItem = (service: ServiceItem) => {
+    setServices((prev) => prev.map((s) => (s.id === service.id ? service : s)));
+    showToast(`Service "${service.name}" updated`, 'success');
+  };
+
+  // Attendance
+  const [isCheckedIn, setIsCheckedIn] = useState<boolean>(true);
+  const [checkInTime, setCheckInTime] = useState<string | null>('08:45 AM');
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(19500);
+  const [isLateToday, setIsLateToday] = useState<boolean>(false);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isCheckedIn) {
+      timer = setInterval(() => setElapsedSeconds((prev) => prev + 1), 1000);
+    }
+    return () => clearInterval(timer);
+  }, [isCheckedIn]);
+
   const toggleCheckIn = () => {
     if (isCheckedIn) {
       setIsCheckedIn(false);
-      const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      logAuditEvent('Shift Punch Out', 'attendance', `Operator shift concluded at ${nowStr}`);
-      showToast(`Punched OUT at ${nowStr}. Shift logged: ${Math.floor(elapsedSeconds / 3600)}h ${Math.floor((elapsedSeconds % 3600) / 60)}m.`, 'info');
+      showToast('Shift checked out. Have a great evening!', 'info');
+      logAuditEvent('Shift Check-Out', 'attendance', `Operator ${currentUser.fullName} checked out.`);
     } else {
-      setIsCheckedIn(true);
       const now = new Date();
-      const nowStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      setCheckInTime(nowStr);
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setIsCheckedIn(true);
+      setCheckInTime(timeStr);
       const isLate = now.getHours() > 9 || (now.getHours() === 9 && now.getMinutes() > 30);
       setIsLateToday(isLate);
-
-      const newRecord: AttendanceRecord = {
-        id: `att-${Date.now()}`,
-        userId: currentUser.id,
-        userName: currentUser.fullName,
-        date: new Date().toISOString().split('T')[0],
-        checkInTime: nowStr,
-        durationMinutes: 0,
-        isLate,
-        lateReason: isLate ? 'Logged in after 09:30 AM standard shift window' : undefined,
-        status: isLate ? 'late' : 'present',
-        location: 'Bengaluru Campus Hub'
-      };
-
-      setAttendanceRecords((prev) => [newRecord, ...prev]);
-      logAuditEvent('Shift Punch In', 'attendance', `Logged shift check-in at ${nowStr} (Late: ${isLate})`);
-      showToast(isLate ? `⚠️ Late Check-In logged at ${nowStr} (>09:30 AM policy)` : `✓ Check-In recorded at ${nowStr}`, isLate ? 'warning' : 'success');
+      setElapsedSeconds(0);
+      showToast(`Shift checked in at ${timeStr}${isLate ? ' (Marked as late)' : ''}`, isLate ? 'warning' : 'success');
+      logAuditEvent('Shift Check-In', 'attendance', `Operator ${currentUser.fullName} checked in at ${timeStr}`);
     }
   };
 
-  const submitLeaveRequest = (leave: {
-    leaveType: 'annual' | 'sick' | 'casual' | 'emergency';
-    startDate: string;
-    endDate: string;
-    totalDays: number;
-    reason: string;
-  }) => {
-    const newLeave: LeaveRequest = {
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() => {
+    const saved = localStorage.getItem('digiworku_attendance_v4');
+    return saved ? JSON.parse(saved) : INITIAL_ATTENDANCE;
+  });
+  useEffect(() => {
+    localStorage.setItem('digiworku_attendance_v4', JSON.stringify(attendanceRecords));
+  }, [attendanceRecords]);
+
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(() => {
+    const saved = localStorage.getItem('digiworku_leaves_v4');
+    return saved ? JSON.parse(saved) : INITIAL_LEAVES;
+  });
+  useEffect(() => {
+    localStorage.setItem('digiworku_leaves_v4', JSON.stringify(leaveRequests));
+  }, [leaveRequests]);
+
+  const submitLeaveRequest = (leave: { leaveType: LeaveRequest['leaveType']; startDate: string; endDate: string; totalDays: number; reason: string }) => {
+    const newReq: LeaveRequest = {
       id: `leave-${Date.now()}`,
       userId: currentUser.id,
       userName: currentUser.fullName,
@@ -495,64 +377,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'pending',
       appliedAt: new Date().toISOString().split('T')[0]
     };
-    setLeaveRequests((prev) => [newLeave, ...prev]);
-
-    // Push Notification
-    setNotifications((prev) => [
-      {
-        id: `notif-${Date.now()}`,
-        title: 'New Leave Request',
-        message: `${currentUser.fullName} applied for ${leave.totalDays} day(s) ${leave.leaveType} leave.`,
-        type: 'leave',
-        read: false,
-        createdAt: 'Just now',
-        linkModule: 'attendance'
-      },
-      ...prev
-    ]);
-
-    logAuditEvent('Leave Application', 'attendance', `Submitted ${leave.totalDays}d ${leave.leaveType} leave request`);
-    showToast(`Leave request for ${leave.totalDays} day(s) submitted for HR approval!`, 'success');
+    setLeaveRequests((prev) => [newReq, ...prev]);
+    showToast('Leave request submitted to HR Operations', 'success');
+    logAuditEvent('Leave Application', 'attendance', `Leave application for ${leave.totalDays} days submitted.`);
   };
 
   const reviewLeaveRequest = (leaveId: string, status: 'approved' | 'rejected') => {
     setLeaveRequests((prev) =>
-      prev.map((lr) =>
-        lr.id === leaveId ? { ...lr, status, reviewedBy: currentUser.fullName } : lr
-      )
+      prev.map((l) => (l.id === leaveId ? { ...l, status, reviewedBy: currentUser.fullName } : l))
     );
-    logAuditEvent('Leave Review', 'attendance', `Leave request ${leaveId} was marked ${status}`);
-    showToast(`Leave request ${status.toUpperCase()} by ${currentUser.fullName}`, status === 'approved' ? 'success' : 'warning');
+    showToast(`Leave request ${status}`, status === 'approved' ? 'success' : 'warning');
+    logAuditEvent('Leave Review', 'attendance', `Leave request ${leaveId} was ${status} by ${currentUser.fullName}.`);
   };
 
   const addAttendanceCorrection = (recordId: string, correctedTime: string, reason: string) => {
     setAttendanceRecords((prev) =>
       prev.map((rec) =>
-        rec.id === recordId ? { ...rec, checkInTime: correctedTime, lateReason: `Adjusted: ${reason}` } : rec
+        rec.id === recordId
+          ? { ...rec, checkInTime: correctedTime, isLate: false, status: 'present', lateReason: `Corrected: ${reason}` }
+          : rec
       )
     );
-    logAuditEvent('Attendance Correction', 'attendance', `Record ${recordId} adjusted to ${correctedTime}. Reason: ${reason}`);
-    showToast('Attendance record adjusted with audit log.', 'success');
+    showToast('Attendance record corrected', 'success');
   };
 
-  // Tasks Management
-  const updateTaskStatus = (taskId: string, newStatus: TaskStatus) => {
+  // Tasks & Workflow (Fokys style)
+  const [tasks, setTasks] = useState<InternalTask[]>(() => {
+    const saved = localStorage.getItem('digiworku_tasks_v4');
+    return saved ? JSON.parse(saved) : INITIAL_TASKS;
+  });
+  useEffect(() => {
+    localStorage.setItem('digiworku_tasks_v4', JSON.stringify(tasks));
+  }, [tasks]);
+
+  const updateTaskStatus = (taskId: string, status: TaskStatus) => {
     setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
+      prev.map((t) => {
+        if (t.id === taskId) {
+          const newProgress = status === 'done' ? 100 : status === 'qa_ready' ? 85 : status === 'in_progress' ? 50 : 0;
+          return { ...t, status, progressPercent: newProgress };
+        }
+        return t;
+      })
     );
-    const task = tasks.find((t) => t.id === taskId);
-    logAuditEvent('Task Status Update', 'tasks', `Moved "${task?.title || taskId}" to ${newStatus}`);
-    showToast(`Task status updated to: ${newStatus.replace('_', ' ').toUpperCase()}`);
+    showToast(`Task status updated to ${status.replace('_', ' ').toUpperCase()}`, 'info');
   };
 
   const toggleTaskChecklist = (taskId: string, checkId: string) => {
     setTasks((prev) =>
       prev.map((t) => {
         if (t.id === taskId) {
-          const updatedChecklist = t.checklist.map((item) =>
+          const updated = t.checklist.map((item) =>
             item.id === checkId ? { ...item, completed: !item.completed } : item
           );
-          return { ...t, checklist: updatedChecklist };
+          const completedCount = updated.filter((c) => c.completed).length;
+          const progress = updated.length > 0 ? Math.round((completedCount / updated.length) * 100) : t.progressPercent;
+          return { ...t, checklist: updated, progressPercent: progress };
         }
         return t;
       })
@@ -562,237 +442,542 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addTask = (task: Omit<InternalTask, 'id' | 'createdAt'>) => {
     const newTask: InternalTask = {
       ...task,
-      id: `task-${Date.now()}`,
+      id: `tsk-${Date.now()}`,
       createdAt: new Date().toISOString().split('T')[0]
     };
     setTasks((prev) => [newTask, ...prev]);
-    logAuditEvent('Task Created', 'tasks', `Created task "${newTask.title}" for ${newTask.assigneeName}`);
-    showToast(`Task "${newTask.title}" assigned to ${newTask.assigneeName}!`);
+    showToast(`Task "${task.title}" created`, 'success');
+    logAuditEvent('Task Created', 'tasks', `Created task: ${task.title}`);
   };
 
-  const updateTask = (updated: InternalTask) => {
-    setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-    logAuditEvent('Task Edited', 'tasks', `Updated details for task "${updated.title}"`);
-    showToast(`Task "${updated.title}" updated.`);
+  const updateTask = (task: InternalTask) => {
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)));
+    showToast(`Task "${task.title}" updated`, 'success');
   };
 
   const deleteTask = (taskId: string) => {
-    const t = tasks.find((item) => item.id === taskId);
-    setTasks((prev) => prev.filter((item) => item.id !== taskId));
-    logAuditEvent('Task Deleted', 'tasks', `Removed task "${t?.title || taskId}"`, 'warning');
-    showToast(`Task deleted.`, 'warning');
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    showToast('Task removed', 'warning');
+  };
+
+  const submitTaskWork = (taskId: string, submissionUrl: string, notes: string) => {
+    const targetTask = tasks.find((t) => t.id === taskId);
+    if (!targetTask) return;
+
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              status: 'qa_ready',
+              progressPercent: 85,
+              submissionUrl,
+              submissionNotes: notes,
+              submittedAt: new Date().toLocaleString(),
+              qcReviewStatus: 'pending'
+            }
+          : t
+      )
+    );
+
+    // Auto-create QC review entry for the QA team
+    const newQC: QCReview = {
+      id: `qc-rev-${Date.now()}`,
+      projectId: targetTask.projectId,
+      projectName: targetTask.projectName,
+      milestoneTitle: targetTask.title,
+      taskId: targetTask.id,
+      deliverablePreviewUrl: submissionUrl,
+      submittedBy: targetTask.assigneeId,
+      submittedByName: targetTask.assigneeName,
+      overallScore: 90,
+      decision: 'pending',
+      comments: notes,
+      revisionCount: (targetTask.revisionCount || 0) + 1,
+      checklistItems: INITIAL_QC_REVIEWS[0]?.checklistItems || [],
+      deliveryAuthorized: false,
+      submittedAt: new Date().toLocaleString()
+    };
+    setQcReviews((prev) => [newQC, ...prev]);
+
+    // Send notification
+    const newNotif: AppNotification = {
+      id: `notif-${Date.now()}`,
+      title: 'Deliverable Submitted for QA Review',
+      message: `${targetTask.assigneeName} submitted deliverable for "${targetTask.title}" (${targetTask.projectName}).`,
+      type: 'qc',
+      read: false,
+      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      linkModule: 'qc'
+    };
+    setNotifications((prev) => [newNotif, ...prev]);
+
+    showToast(`Work submitted for QA Review. Handed over to QC Engine!`, 'success');
+    logAuditEvent('Deliverable Submitted', 'qc', `Task ${targetTask.title} deliverable submitted for review.`);
   };
 
   // CRM & Clients
-  const updateClientStatus = (clientId: string, newStatus: LeadStatus) => {
+  const [clients, setClients] = useState<ClientLead[]>(() => {
+    const saved = localStorage.getItem('digiworku_clients_v4');
+    return saved ? JSON.parse(saved) : INITIAL_CLIENTS;
+  });
+  useEffect(() => {
+    localStorage.setItem('digiworku_clients_v4', JSON.stringify(clients));
+  }, [clients]);
+
+  const [quotes, setQuotes] = useState<ClientQuote[]>(() => {
+    const saved = localStorage.getItem('digiworku_quotes_v4');
+    return saved ? JSON.parse(saved) : INITIAL_QUOTES;
+  });
+  useEffect(() => {
+    localStorage.setItem('digiworku_quotes_v4', JSON.stringify(quotes));
+  }, [quotes]);
+
+  const updateClientStatus = (clientId: string, status: LeadStatus) => {
     setClients((prev) =>
-      prev.map((c) => (c.id === clientId ? { ...c, status: newStatus } : c))
+      prev.map((c) =>
+        c.id === clientId
+          ? {
+              ...c,
+              status,
+              activityHistory: [
+                {
+                  date: new Date().toISOString().split('T')[0],
+                  note: `Pipeline stage updated to: ${status.replace('_', ' ').toUpperCase()}`,
+                  author: currentUser.fullName
+                },
+                ...c.activityHistory
+              ]
+            }
+          : c
+      )
     );
-    const c = clients.find((item) => item.id === clientId);
-    logAuditEvent('CRM Stage Advance', 'crm', `Client "${c?.companyName}" shifted to ${newStatus}`);
-    showToast(`Client stage updated to: ${newStatus.replace('_', ' ').toUpperCase()}`);
+    showToast(`Client stage updated to ${status.replace('_', ' ').toUpperCase()}`, 'info');
   };
 
   const addClient = (client: Omit<ClientLead, 'id' | 'activityHistory'>) => {
     const newClient: ClientLead = {
       ...client,
-      id: `client-${Date.now()}`,
+      id: `cli-${Date.now()}`,
       activityHistory: [
         {
           date: new Date().toISOString().split('T')[0],
-          note: `Lead created into CRM pipeline with contract valuation ₹${client.contractValue.toLocaleString()}.`,
+          note: `Lead acquired into CRM pipeline from ${client.leadSource || 'Direct Inbound'}.`,
           author: currentUser.fullName
         }
       ]
     };
     setClients((prev) => [newClient, ...prev]);
-    logAuditEvent('Client Added', 'crm', `New enterprise lead registered: ${client.companyName}`);
-    showToast(`Lead for "${newClient.companyName}" added to CRM pipeline!`);
+    showToast(`Lead "${client.companyName}" registered`, 'success');
+    logAuditEvent('Lead Registered', 'crm', `Lead ${client.companyName} added.`);
   };
 
-  const updateClient = (updated: ClientLead) => {
-    setClients((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-    logAuditEvent('Client Dossier Edited', 'crm', `Updated information for ${updated.companyName}`);
-    showToast(`Client "${updated.companyName}" dossier updated.`);
+  const updateClient = (client: ClientLead) => {
+    setClients((prev) => prev.map((c) => (c.id === client.id ? client : c)));
+    showToast(`Client "${client.companyName}" updated`, 'success');
   };
 
   const deleteClient = (clientId: string) => {
-    const c = clients.find((item) => item.id === clientId);
-    setClients((prev) => prev.filter((item) => item.id !== clientId));
-    logAuditEvent('Client Deleted', 'crm', `Removed client "${c?.companyName || clientId}"`, 'warning');
-    showToast(`Client removed from CRM pipeline.`, 'warning');
+    setClients((prev) => prev.filter((c) => c.id !== clientId));
+    showToast('Client record removed', 'warning');
+  };
+
+  // Convert Lead -> Active Client and auto-prompt project creation
+  const convertLeadToClient = (leadId: string): ClientLead => {
+    const targetLead = clients.find((c) => c.id === leadId);
+    if (!targetLead) throw new Error('Lead not found');
+
+    const updatedLead: ClientLead = {
+      ...targetLead,
+      status: 'active_client',
+      activityHistory: [
+        {
+          date: new Date().toISOString().split('T')[0],
+          note: `🎉 Lead WON and converted into active corporate client!`,
+          author: currentUser.fullName
+        },
+        ...targetLead.activityHistory
+      ]
+    };
+
+    setClients((prev) => prev.map((c) => (c.id === leadId ? updatedLead : c)));
+    showToast(`🎉 "${targetLead.companyName}" converted to Active Client!`, 'success');
+    logAuditEvent('Lead Converted', 'crm', `Lead ${targetLead.companyName} converted to Active Client.`);
+    return updatedLead;
   };
 
   const addQuote = (quote: ClientQuote) => {
     setQuotes((prev) => [quote, ...prev]);
-    logAuditEvent('Quote Generated', 'crm', `Generated formal proposal ${quote.quoteNumber} (₹${quote.total.toLocaleString()})`);
-    showToast(`Quote #${quote.quoteNumber} created for ${quote.clientName}! Total: ₹${quote.total.toLocaleString()}`);
+    showToast(`Quote ${quote.quoteNumber} issued (₹${quote.total.toLocaleString('en-IN')})`, 'success');
+    logAuditEvent('Quote Issued', 'crm', `Quote ${quote.quoteNumber} issued for ${quote.clientName}`);
   };
 
-  // Projects & Milestones
-  const updateMilestoneStatus = (
-    projectId: string,
-    milestoneId: string,
-    status: ProjectMilestone['status']
-  ) => {
+  // Convert Proposal / Quote -> Project
+  const convertProposalToProject = (quoteId: string): Project => {
+    const targetQuote = quotes.find((q) => q.id === quoteId);
+    if (!targetQuote) throw new Error('Quote not found');
+
+    const newProject: Project = {
+      id: `proj-${Date.now()}`,
+      name: `${targetQuote.clientName} Project`,
+      code: `DW-${Math.floor(1000 + Math.random() * 9000)}`,
+      clientId: targetQuote.clientId,
+      clientName: targetQuote.clientName,
+      serviceCategory: targetQuote.serviceCategory || 'website_development',
+      managerId: currentUser.id,
+      managerName: currentUser.fullName,
+      status: 'confirmed',
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      budget: targetQuote.subtotal,
+      estimatedCost: Math.round(targetQuote.subtotal * 0.45), // 45% estimated cost
+      spent: 0,
+      currency: 'INR',
+      techStack: ['React', 'TypeScript', 'Tailwind CSS', 'Node.js'],
+      progress: 0,
+      riskFactor: 'low',
+      daysDelayed: 0,
+      assignedEmployees: [currentUser.id],
+      assignedFreelancers: [],
+      deliveryAuthorized: false,
+      milestones: targetQuote.items.map((item, idx) => ({
+        id: `ms-gen-${Date.now()}-${idx}`,
+        projectId: `proj-${Date.now()}`,
+        title: item.description,
+        orderIndex: idx + 1,
+        dueDate: new Date(Date.now() + (idx + 1) * 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        status: 'pending',
+        amount: item.amount
+      }))
+    };
+
+    setProjects((prev) => [newProject, ...prev]);
+    setQuotes((prev) =>
+      prev.map((q) => (q.id === quoteId ? { ...q, status: 'accepted', convertedProjectId: newProject.id } : q))
+    );
+
+    // Auto-create initial advance invoice (50%)
+    const advanceAmount = Math.round(targetQuote.total * 0.5);
+    const newInvoice: InvoiceRecord = {
+      id: `inv-gen-${Date.now()}`,
+      invoiceNumber: `DW-INV-${Math.floor(1000 + Math.random() * 9000)}`,
+      clientId: targetQuote.clientId,
+      clientName: targetQuote.clientName,
+      clientEmail: targetQuote.clientEmail,
+      projectId: newProject.id,
+      projectName: newProject.name,
+      issueDate: new Date().toISOString().split('T')[0],
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      subtotal: Math.round(targetQuote.subtotal * 0.5),
+      taxAmount: Math.round(targetQuote.taxAmount * 0.5),
+      totalAmount: advanceAmount,
+      amountPaid: 0,
+      status: 'sent',
+      payments: []
+    };
+    setInvoices((prev) => [newInvoice, ...prev]);
+
+    showToast(`Proposal accepted! Project & Advance Invoice created.`, 'success');
+    logAuditEvent('Proposal to Project Conversion', 'projects', `Converted Quote ${targetQuote.quoteNumber} into Project ${newProject.name}`);
+    return newProject;
+  };
+
+  // Projects
+  const [projects, setProjects] = useState<Project[]>(() => {
+    const saved = localStorage.getItem('digiworku_projects_v4');
+    return saved ? JSON.parse(saved) : INITIAL_PROJECTS;
+  });
+  useEffect(() => {
+    localStorage.setItem('digiworku_projects_v4', JSON.stringify(projects));
+  }, [projects]);
+
+  const updateMilestoneStatus = (projectId: string, milestoneId: string, status: ProjectMilestone['status']) => {
     setProjects((prev) =>
       prev.map((p) => {
         if (p.id === projectId) {
-          const updatedMilestones = p.milestones.map((m) =>
-            m.id === milestoneId ? { ...m, status } : m
-          );
-          const approvedCount = updatedMilestones.filter((m) => m.status === 'approved_by_client' || m.status === 'paid').length;
-          const calculatedProgress = Math.round((approvedCount / updatedMilestones.length) * 100);
-
-          return {
-            ...p,
-            milestones: updatedMilestones,
-            progress: calculatedProgress
-          };
+          const updated = p.milestones.map((m) => (m.id === milestoneId ? { ...m, status } : m));
+          const completedCount = updated.filter((m) => m.status === 'approved_by_client' || m.status === 'paid').length;
+          const progress = updated.length > 0 ? Math.round((completedCount / updated.length) * 100) : p.progress;
+          return { ...p, milestones: updated, progress };
         }
         return p;
       })
     );
-    logAuditEvent('Milestone Status Changed', 'projects', `Project ${projectId} milestone updated to ${status}`);
-    showToast(`Milestone status updated to: ${status.replace('_', ' ').toUpperCase()}`);
+    showToast(`Milestone status updated to ${status.replace('_', ' ').toUpperCase()}`, 'info');
   };
 
   const addProject = (proj: Omit<Project, 'id'>) => {
-    const newProject: Project = {
-      ...proj,
-      id: `proj-${Date.now()}`
-    };
-    setProjects((prev) => [newProject, ...prev]);
-    logAuditEvent('Project Created', 'projects', `Initiated project roadmap "${newProject.name}" (Code: ${newProject.code})`);
-    showToast(`Project "${newProject.name}" added successfully!`);
+    const newProj: Project = { ...proj, id: `proj-${Date.now()}` };
+    setProjects((prev) => [newProj, ...prev]);
+    showToast(`Project "${proj.name}" initialized`, 'success');
+    logAuditEvent('Project Initialized', 'projects', `Initialized project ${proj.name} (Code: ${proj.code})`);
   };
 
-  const updateProject = (updated: Project) => {
-    setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-    logAuditEvent('Project Updated', 'projects', `Updated details for project "${updated.name}"`);
-    showToast(`Project "${updated.name}" updated.`);
+  const updateProject = (proj: Project) => {
+    setProjects((prev) => prev.map((p) => (p.id === proj.id ? proj : p)));
+    showToast(`Project "${proj.name}" updated`, 'success');
   };
 
   const deleteProject = (projectId: string) => {
-    const p = projects.find((item) => item.id === projectId);
-    setProjects((prev) => prev.filter((item) => item.id !== projectId));
-    logAuditEvent('Project Deleted', 'projects', `Deleted project "${p?.name || projectId}"`, 'warning');
-    showToast(`Project removed.`, 'warning');
+    setProjects((prev) => prev.filter((p) => p.id !== projectId));
+    showToast('Project removed', 'warning');
   };
 
   const addMilestone = (projectId: string, milestone: Omit<ProjectMilestone, 'id' | 'projectId'>) => {
+    const newMs: ProjectMilestone = {
+      ...milestone,
+      id: `ms-${Date.now()}`,
+      projectId
+    };
     setProjects((prev) =>
-      prev.map((p) => {
-        if (p.id === projectId) {
-          const newMilestone: ProjectMilestone = {
-            ...milestone,
-            id: `ms-${Date.now()}`,
-            projectId
-          };
-          return {
-            ...p,
-            milestones: [...p.milestones, newMilestone]
-          };
-        }
-        return p;
-      })
+      prev.map((p) => (p.id === projectId ? { ...p, milestones: [...p.milestones, newMs] } : p))
     );
-    logAuditEvent('Milestone Added', 'projects', `Added milestone "${milestone.title}" to project ${projectId}`);
-    showToast(`Milestone "${milestone.title}" added to project!`);
+    showToast(`Milestone "${milestone.title}" added to project`, 'success');
   };
 
-  // Freelancer Network
+  // Freelancers & Mobile Payouts
+  const [freelancers, setFreelancers] = useState<Freelancer[]>(() => {
+    const saved = localStorage.getItem('digiworku_freelancers_v4');
+    return saved ? JSON.parse(saved) : INITIAL_FREELANCERS;
+  });
+  useEffect(() => {
+    localStorage.setItem('digiworku_freelancers_v4', JSON.stringify(freelancers));
+  }, [freelancers]);
+
+  const [freelancerPayouts, setFreelancerPayouts] = useState<FreelancerPayout[]>(() => {
+    const saved = localStorage.getItem('digiworku_payouts_v4');
+    return saved ? JSON.parse(saved) : INITIAL_FREELANCER_PAYOUTS;
+  });
+  useEffect(() => {
+    localStorage.setItem('digiworku_payouts_v4', JSON.stringify(freelancerPayouts));
+  }, [freelancerPayouts]);
+
   const updateFreelancerStatus = (id: string, status: Freelancer['status']) => {
-    setFreelancers((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, status } : f))
-    );
-    const fl = freelancers.find((item) => item.id === id);
-    logAuditEvent('Freelancer Availability', 'freelancers', `Updated status for ${fl?.fullName} to ${status}`);
-    showToast(`Freelancer availability set to ${status.toUpperCase()}`);
+    setFreelancers((prev) => prev.map((f) => (f.id === id ? { ...f, status } : f)));
+    showToast(`Freelancer availability updated to ${status}`, 'info');
   };
 
   const addFreelancer = (fl: Omit<Freelancer, 'id'>) => {
-    const newFL: Freelancer = {
-      ...fl,
-      id: `fl-${Date.now()}`
-    };
-    setFreelancers((prev) => [newFL, ...prev]);
-    logAuditEvent('Freelancer Added', 'freelancers', `Vetted talent onboarded: ${fl.fullName}`);
-    showToast(`Freelancer "${newFL.fullName}" onboarded to network!`);
+    const newFl: Freelancer = { ...fl, id: `fl-${Date.now()}` };
+    setFreelancers((prev) => [newFl, ...prev]);
+    showToast(`Freelancer "${fl.fullName}" registered to talent network`, 'success');
   };
 
-  const updateFreelancer = (updated: Freelancer) => {
-    setFreelancers((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
-    logAuditEvent('Freelancer Edited', 'freelancers', `Updated profile for ${updated.fullName}`);
-    showToast(`Freelancer profile for "${updated.fullName}" updated.`);
+  const updateFreelancer = (fl: Freelancer) => {
+    setFreelancers((prev) => prev.map((f) => (f.id === fl.id ? fl : f)));
+    showToast(`Freelancer "${fl.fullName}" profile updated`, 'success');
   };
 
   const deleteFreelancer = (id: string) => {
-    const fl = freelancers.find((item) => item.id === id);
-    setFreelancers((prev) => prev.filter((item) => item.id !== id));
-    logAuditEvent('Freelancer Deleted', 'freelancers', `Removed ${fl?.fullName || id}`, 'warning');
-    showToast(`Freelancer removed from network.`, 'warning');
+    setFreelancers((prev) => prev.filter((f) => f.id !== id));
+    showToast('Freelancer profile removed', 'warning');
   };
 
   const allocateFreelancerToProject = (freelancerId: string, projectId: string) => {
-    const fl = freelancers.find((item) => item.id === freelancerId);
-    const proj = projects.find((item) => item.id === projectId);
-    if (!fl || !proj) return;
+    const fl = freelancers.find((f) => f.id === freelancerId);
+    const prj = projects.find((p) => p.id === projectId);
+    if (!fl || !prj) return;
 
-    setFreelancers((prev) =>
-      prev.map((f) => (f.id === freelancerId ? { ...f, activeProjectsCount: f.activeProjectsCount + 1, status: 'busy' } : f))
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === projectId
+          ? { ...p, assignedFreelancers: Array.from(new Set([...p.assignedFreelancers, freelancerId])) }
+          : p
+      )
     );
-
-    logAuditEvent('Freelancer Allocated', 'freelancers', `Allocated ${fl.fullName} to project "${proj.name}"`);
-    showToast(`Allocated ${fl.fullName} to "${proj.name}"!`);
+    setFreelancers((prev) =>
+      prev.map((f) => (f.id === freelancerId ? { ...f, activeProjectsCount: f.activeProjectsCount + 1 } : f))
+    );
+    showToast(`Allocated ${fl.fullName} to "${prj.name}"`, 'success');
+    logAuditEvent('Freelancer Allocation', 'freelancers', `Allocated ${fl.fullName} to project ${prj.name}`);
   };
 
-  // Finance & Payroll
+  const releaseFreelancerPayout = (payoutId: string) => {
+    const targetPayout = freelancerPayouts.find((p) => p.id === payoutId);
+    if (!targetPayout) return;
+
+    const refNum = `UPI-REF-${Math.floor(100000000 + Math.random() * 900000000)}`;
+    setFreelancerPayouts((prev) =>
+      prev.map((p) =>
+        p.id === payoutId ? { ...p, status: 'paid', paidAt: new Date().toISOString().split('T')[0], paymentReference: refNum } : p
+      )
+    );
+
+    // Record as business expense & increment project actual cost
+    addBusinessExpense({
+      category: 'Freelancer Payout',
+      description: `Disbursed payout for ${targetPayout.freelancerName} (${targetPayout.taskTitle || targetPayout.projectName})`,
+      amount: targetPayout.amount,
+      date: new Date().toISOString().split('T')[0],
+      projectId: targetPayout.projectId,
+      projectName: targetPayout.projectName,
+      loggedBy: currentUser.fullName,
+      status: 'approved'
+    });
+
+    // Update project spent cost
+    setProjects((prev) =>
+      prev.map((p) => (p.id === targetPayout.projectId ? { ...p, spent: p.spent + targetPayout.amount } : p))
+    );
+
+    showToast(`₹${targetPayout.amount.toLocaleString('en-IN')} payout disbursed to ${targetPayout.freelancerName} (${refNum})`, 'success');
+    logAuditEvent('Freelancer Payout Disbursed', 'finance', `Payout of ₹${targetPayout.amount} released to ${targetPayout.freelancerName}`);
+  };
+
+  const requestFreelancerPayout = (payout: Omit<FreelancerPayout, 'id'>) => {
+    const newPayout: FreelancerPayout = {
+      ...payout,
+      id: `payout-${Date.now()}`
+    };
+    setFreelancerPayouts((prev) => [newPayout, ...prev]);
+    showToast(`Payout request of ₹${payout.amount.toLocaleString('en-IN')} submitted to Finance`, 'success');
+  };
+
+  // Finance, Invoices & Installments
+  const [payroll, setPayroll] = useState<PayrollRecord[]>(() => {
+    const saved = localStorage.getItem('digiworku_payroll_v4');
+    return saved ? JSON.parse(saved) : INITIAL_PAYROLL;
+  });
+  useEffect(() => {
+    localStorage.setItem('digiworku_payroll_v4', JSON.stringify(payroll));
+  }, [payroll]);
+
+  const [invoices, setInvoices] = useState<InvoiceRecord[]>(() => {
+    const saved = localStorage.getItem('digiworku_invoices_v4');
+    return saved ? JSON.parse(saved) : INITIAL_INVOICES;
+  });
+  useEffect(() => {
+    localStorage.setItem('digiworku_invoices_v4', JSON.stringify(invoices));
+  }, [invoices]);
+
+  const [expenses, setExpenses] = useState<BusinessExpense[]>(() => {
+    const saved = localStorage.getItem('digiworku_expenses_v4');
+    return saved ? JSON.parse(saved) : INITIAL_EXPENSES;
+  });
+  useEffect(() => {
+    localStorage.setItem('digiworku_expenses_v4', JSON.stringify(expenses));
+  }, [expenses]);
+
+  const [financialSummary, setFinancialSummary] = useState<FinancialSummary>(INITIAL_FINANCE_SUMMARY);
+
   const processPayrollItem = (id: string) => {
     setPayroll((prev) =>
       prev.map((p) =>
         p.id === id ? { ...p, status: 'paid', processedDate: new Date().toISOString().split('T')[0] } : p
       )
     );
-    const item = payroll.find((p) => p.id === id);
-    logAuditEvent('Salary Disbursed', 'finance', `Processed salary payout for ${item?.employeeName} (₹${item?.netSalary.toLocaleString()})`);
-    showToast(`Salary for ${item?.employeeName || 'staff'} marked as PAID!`, 'success');
+    showToast('Salary payment cleared via automated banking gateway', 'success');
   };
 
-  const createInvoice = (inv: Omit<InvoiceRecord, 'id'>) => {
+  const createInvoice = (inv: Omit<InvoiceRecord, 'id' | 'payments' | 'amountPaid'>) => {
     const newInv: InvoiceRecord = {
       ...inv,
-      id: `inv-${Date.now()}`
+      id: `inv-${Date.now()}`,
+      amountPaid: 0,
+      payments: []
     };
     setInvoices((prev) => [newInv, ...prev]);
-    logAuditEvent('Invoice Created', 'finance', `Generated invoice ${newInv.invoiceNumber} for ${newInv.clientName} (₹${newInv.totalAmount.toLocaleString()})`);
-    showToast(`Invoice #${newInv.invoiceNumber} created for ${newInv.clientName}! Total: ₹${newInv.totalAmount.toLocaleString()}`);
+    showToast(`Invoice ${inv.invoiceNumber} generated for ${inv.clientName}`, 'success');
+    logAuditEvent('Invoice Created', 'finance', `Created invoice ${inv.invoiceNumber}`);
   };
 
-  const updateInvoice = (updated: InvoiceRecord) => {
-    setInvoices((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
-    logAuditEvent('Invoice Updated', 'finance', `Modified invoice #${updated.invoiceNumber}`);
-    showToast(`Invoice #${updated.invoiceNumber} updated.`);
+  const updateInvoice = (inv: InvoiceRecord) => {
+    setInvoices((prev) => prev.map((i) => (i.id === inv.id ? inv : i)));
+    showToast(`Invoice ${inv.invoiceNumber} updated`, 'success');
   };
 
   const deleteInvoice = (id: string) => {
-    const inv = invoices.find((item) => item.id === id);
-    setInvoices((prev) => prev.filter((item) => item.id !== id));
-    logAuditEvent('Invoice Deleted', 'finance', `Removed invoice #${inv?.invoiceNumber || id}`, 'warning');
-    showToast(`Invoice removed.`, 'warning');
+    setInvoices((prev) => prev.filter((i) => i.id !== id));
+    showToast('Invoice removed', 'warning');
   };
 
-  const addExpense = (expense: { description: string; amount: number; category: string; date: string }) => {
+  // Record partial or full payment on an invoice
+  const recordInvoicePayment = (
+    invoiceId: string,
+    amount: number,
+    paymentMethod: InvoiceRecord['payments'][0]['paymentMethod'],
+    notes?: string
+  ) => {
+    const targetInv = invoices.find((i) => i.id === invoiceId);
+    if (!targetInv) return;
+
+    const newPayment = {
+      id: `p-${Date.now()}`,
+      invoiceId,
+      amount,
+      paidAt: new Date().toISOString().split('T')[0],
+      paymentMethod,
+      transactionReference: `TXN-${Math.floor(100000000 + Math.random() * 900000000)}`,
+      notes
+    };
+
+    const newTotalPaid = targetInv.amountPaid + amount;
+    const isFullPaid = newTotalPaid >= targetInv.totalAmount;
+    const newStatus: InvoiceRecord['status'] = isFullPaid ? 'paid' : 'partially_paid';
+
+    setInvoices((prev) =>
+      prev.map((i) =>
+        i.id === invoiceId
+          ? {
+              ...i,
+              amountPaid: newTotalPaid,
+              status: newStatus,
+              payments: [newPayment, ...i.payments]
+            }
+          : i
+      )
+    );
+
+    // Update financial summary
+    setFinancialSummary((prev) => ({
+      ...prev,
+      collectedRevenue: prev.collectedRevenue + amount,
+      outstandingRevenue: Math.max(0, prev.outstandingRevenue - amount)
+    }));
+
+    showToast(
+      `Payment of ₹${amount.toLocaleString('en-IN')} recorded for ${targetInv.invoiceNumber} (${isFullPaid ? 'Fully Cleared' : 'Partial Installment'})`,
+      'success'
+    );
+    logAuditEvent('Invoice Payment Recorded', 'finance', `Recorded payment of ₹${amount} on ${targetInv.invoiceNumber}`);
+  };
+
+  const addBusinessExpense = (expense: Omit<BusinessExpense, 'id'>) => {
+    const newExp: BusinessExpense = {
+      ...expense,
+      id: `exp-${Date.now()}`
+    };
+    setExpenses((prev) => [newExp, ...prev]);
     setFinancialSummary((prev) => ({
       ...prev,
       totalExpenses: prev.totalExpenses + expense.amount,
-      netProfit: prev.totalRevenueYTD - (prev.totalExpenses + expense.amount)
+      netProfit: prev.monthlyRevenue - (prev.totalExpenses + expense.amount)
     }));
-    logAuditEvent('Expense Recorded', 'finance', `Recorded expense: ${expense.description} (₹${expense.amount.toLocaleString()})`);
-    showToast(`Expense of ₹${expense.amount.toLocaleString()} logged.`);
+    showToast(`Expense logged: ${expense.description} (₹${expense.amount.toLocaleString('en-IN')})`, 'info');
+  };
+
+  const addExpense = (expense: { description: string; amount: number; category: string; date: string }) => {
+    addBusinessExpense({
+      description: expense.description,
+      amount: expense.amount,
+      category: expense.category as any,
+      date: expense.date,
+      loggedBy: currentUser.fullName,
+      status: 'approved'
+    });
   };
 
   // Internal Communication
+  const [channels, setChannels] = useState<ChatChannel[]>(INITIAL_CHANNELS);
+  const [activeChannelId, setActiveChannelId] = useState<string>('announcements');
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const saved = localStorage.getItem('digiworku_messages_v4');
+    return saved ? JSON.parse(saved) : INITIAL_MESSAGES;
+  });
+  useEffect(() => {
+    localStorage.setItem('digiworku_messages_v4', JSON.stringify(messages));
+  }, [messages]);
+
   const sendMessage = (channelId: string, text: string) => {
     if (!text.trim()) return;
     const newMsg: ChatMessage = {
@@ -800,151 +985,165 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       channelId,
       senderId: currentUser.id,
       senderName: currentUser.fullName,
-      senderRole: currentRole,
+      senderRole: currentUser.role,
       senderAvatar: currentUser.avatarUrl,
-      message: text,
+      message: text.trim(),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
     setMessages((prev) => [...prev, newMsg]);
   };
 
-  // Quality Control
-  const submitQcDecision = (
-    reviewId: string,
-    decision: 'approve' | 'request_revisions' | 'reject',
-    comments: string
-  ) => {
+  // Quality Control (QC) Gate
+  const [qcReviews, setQcReviews] = useState<QCReview[]>(() => {
+    const saved = localStorage.getItem('digiworku_qc_reviews_v4');
+    return saved ? JSON.parse(saved) : INITIAL_QC_REVIEWS;
+  });
+  useEffect(() => {
+    localStorage.setItem('digiworku_qc_reviews_v4', JSON.stringify(qcReviews));
+  }, [qcReviews]);
+
+  const submitQcDecision = (reviewId: string, decision: 'approve' | 'request_revisions' | 'reject', comments: string) => {
     setQcReviews((prev) =>
-      prev.map((q) =>
-        q.id === reviewId
+      prev.map((r) =>
+        r.id === reviewId
           ? {
-              ...q,
+              ...r,
               decision,
               comments,
               reviewerId: currentUser.id,
               reviewerName: currentUser.fullName,
-              reviewedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              reviewedAt: new Date().toLocaleString(),
+              deliveryAuthorized: decision === 'approve'
             }
-          : q
+          : r
       )
     );
 
-    const review = qcReviews.find((q) => q.id === reviewId);
-    if (review) {
-      const channel = channels.find((c) => c.id === 'qc-alerts');
-      if (channel) {
-        sendMessage(
-          'qc-alerts',
-          `🚨 QC DECISION: Milestone "${review.milestoneTitle}" for project "${review.projectName}" was marked **${decision.toUpperCase()}** by QA Lead ${currentUser.fullName}. Comment: ${comments}`
-        );
-      }
+    const review = qcReviews.find((r) => r.id === reviewId);
+    if (review && decision === 'approve') {
+      setProjects((prev) =>
+        prev.map((p) => (p.id === review.projectId ? { ...p, deliveryAuthorized: true, qcApprovalDate: new Date().toISOString() } : p))
+      );
     }
 
-    logAuditEvent('QC Review Audit', 'qc', `Milestone review ${reviewId} decision: ${decision}`);
-    showToast(`QC Decision: ${decision.replace('_', ' ').toUpperCase()} recorded!`, decision === 'approve' ? 'success' : 'warning');
+    showToast(`QC Decision: ${decision.replace('_', ' ').toUpperCase()}`, decision === 'approve' ? 'success' : 'warning');
+    logAuditEvent('QC Review Completed', 'qc', `QC Review ${reviewId} decision: ${decision} by ${currentUser.fullName}`);
   };
 
   const toggleQcChecklistItem = (reviewId: string, checkId: string) => {
     setQcReviews((prev) =>
-      prev.map((q) => {
-        if (q.id === reviewId) {
-          const updatedItems = q.checklistItems.map((item) =>
+      prev.map((r) => {
+        if (r.id === reviewId) {
+          const items = r.checklistItems.map((item) =>
             item.id === checkId ? { ...item, passed: !item.passed } : item
           );
-          const passedWeight = updatedItems.filter((i) => i.passed).reduce((acc, curr) => acc + curr.weight, 0);
-          const totalWeight = updatedItems.reduce((acc, curr) => acc + curr.weight, 0);
-          const overallScore = Math.round((passedWeight / totalWeight) * 100);
-
-          return { ...q, checklistItems: updatedItems, overallScore };
+          const score = Math.round((items.filter((i) => i.passed).length / items.length) * 100);
+          return { ...r, checklistItems: items, overallScore: score };
         }
-        return q;
+        return r;
       })
     );
   };
 
   const submitDeliverableForQC = (projectId: string, milestoneTitle: string, deliverableUrl: string, comments: string) => {
-    const proj = projects.find((p) => p.id === projectId);
+    const targetProject = projects.find((p) => p.id === projectId);
     const newRev: QCReview = {
-      id: `qc-${Date.now()}`,
+      id: `qc-rev-${Date.now()}`,
       projectId,
-      projectName: proj?.name || 'Enterprise Project',
+      projectName: targetProject?.name || 'Assigned Project',
       milestoneTitle,
       deliverablePreviewUrl: deliverableUrl,
       submittedBy: currentUser.id,
       submittedByName: currentUser.fullName,
-      overallScore: 85,
+      overallScore: 90,
       decision: 'pending',
       comments,
-      checklistItems: qcReviews[0]?.checklistItems || [],
-      submittedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      revisionCount: 1,
+      checklistItems: INITIAL_QC_REVIEWS[0]?.checklistItems || [],
+      deliveryAuthorized: false,
+      submittedAt: new Date().toLocaleString()
     };
     setQcReviews((prev) => [newRev, ...prev]);
-    logAuditEvent('QC Submission', 'qc', `Submitted deliverable for "${milestoneTitle}"`);
-    showToast(`Deliverable for "${milestoneTitle}" submitted to QA team!`);
+    showToast('Deliverable dispatched to QC Review Queue', 'success');
   };
 
-  // Employee Directory
+  const approveQcAndAuthorizeDelivery = (reviewId: string, projectId: string) => {
+    setQcReviews((prev) =>
+      prev.map((r) => (r.id === reviewId ? { ...r, decision: 'approve', deliveryAuthorized: true } : r))
+    );
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === projectId ? { ...p, deliveryAuthorized: true, status: 'approved', qcApprovalDate: new Date().toISOString() } : p
+      )
+    );
+    showToast('✅ Quality Approved! Project authorized for Client Delivery.', 'success');
+    logAuditEvent('Delivery Authorized', 'qc', `Authorized final client delivery for project ${projectId}`);
+  };
+
+  const requestQcRevision = (reviewId: string, revisionNotes: string) => {
+    setQcReviews((prev) =>
+      prev.map((r) =>
+        r.id === reviewId
+          ? {
+              ...r,
+              decision: 'request_revisions',
+              comments: revisionNotes,
+              revisionCount: r.revisionCount + 1,
+              deliveryAuthorized: false
+            }
+          : r
+      )
+    );
+    showToast('Revision requested. Assignee notified.', 'warning');
+    logAuditEvent('QC Revision Requested', 'qc', `Revision requested on review ${reviewId}: ${revisionNotes}`);
+  };
+
+  const [performance, setPerformance] = useState<PerformanceMetrics>(INITIAL_PERFORMANCE);
+
+  // Employees Directory
   const toggleEmployeeActive = (id: string) => {
     setEmployees((prev) =>
       prev.map((e) => (e.id === id ? { ...e, isActive: !e.isActive } : e))
     );
-    const emp = employees.find((e) => e.id === id);
-    const nextStatus = !emp?.isActive;
-    logAuditEvent('Employee Status Changed', 'employees', `Employee ${emp?.fullName} toggled to ${nextStatus ? 'Active' : 'Deactivated'}`);
-    showToast(`Employee status toggled to: ${nextStatus ? 'ACTIVE' : 'INACTIVE'}`);
+    showToast('Employee status updated', 'info');
   };
 
   const addEmployee = (emp: Omit<Employee, 'id'>) => {
-    const newEmp: Employee = {
-      ...emp,
-      id: `emp-${Date.now()}`
-    };
+    const newEmp: Employee = { ...emp, id: `emp-${Date.now()}` };
     setEmployees((prev) => [newEmp, ...prev]);
-    logAuditEvent('Employee Created', 'employees', `Onboarded new employee: ${newEmp.fullName} (${newEmp.role})`);
-    showToast(`Employee "${newEmp.fullName}" onboarded successfully!`);
+    showToast(`Employee "${emp.fullName}" added to directory`, 'success');
   };
 
-  const updateEmployee = (updated: Employee) => {
-    setEmployees((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
-    logAuditEvent('Employee Edited', 'employees', `Updated staff record for ${updated.fullName}`);
-    showToast(`Employee profile for "${updated.fullName}" updated.`);
+  const updateEmployee = (emp: Employee) => {
+    setEmployees((prev) => prev.map((e) => (e.id === emp.id ? emp : e)));
+    showToast(`Employee "${emp.fullName}" updated`, 'success');
   };
 
   const deleteEmployee = (id: string) => {
-    const emp = employees.find((item) => item.id === id);
-    setEmployees((prev) => prev.filter((item) => item.id !== id));
-    logAuditEvent('Employee Deleted', 'employees', `Deactivated employee record for ${emp?.fullName || id}`, 'warning');
-    showToast(`Employee removed from roster.`, 'warning');
+    setEmployees((prev) => prev.filter((e) => e.id !== id));
+    showToast('Employee record archived', 'warning');
   };
 
-  // Notifications
-  const markNotificationAsRead = (id: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
-  };
+  // AI Assistant
+  const [aiMessages, setAiMessages] = useState<AIMessage[]>([
+    {
+      id: 'ai-welcome',
+      sender: 'assistant',
+      text: 'Greetings, Commander. I am your DigiWorku Operations Intelligence agent (powered by Gemini Flash). I am monitoring all 14 operational modules, task velocities, delayed project radars, and financial ledgers. How can I assist you today?',
+      timestamp: '09:00 AM',
+      suggestions: [
+        'Which projects are currently delayed?',
+        'Summarize sprint velocity for Sprint 44',
+        'Show team members with spare capacity',
+        'Draft client status email for Nordic Living'
+      ]
+    }
+  ]);
+  const [isAITyping, setIsAITyping] = useState<boolean>(false);
 
-  const markAllNotificationsAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    showToast('All notifications marked as read.');
-  };
-
-  const clearNotifications = () => {
-    setNotifications([]);
-    showToast('Notifications cleared.');
-  };
-
-  // Company Settings
-  const updateCompanySettings = (settings: Partial<CompanySettings>) => {
-    setCompanySettings((prev) => ({ ...prev, ...settings }));
-    logAuditEvent('System Settings Updated', 'settings', 'Updated company operating parameters & policies');
-    showToast('System configuration saved successfully!');
-  };
-
-  // DigiWorku AI Assistant
   const sendAIMessage = (text: string) => {
-    if (!text.trim()) return;
-
     const userMsg: AIMessage = {
-      id: `user-${Date.now()}`,
+      id: `usr-${Date.now()}`,
       sender: 'user',
       text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -953,29 +1152,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsAITyping(true);
 
     setTimeout(() => {
-      let replyText = '';
       const lower = text.toLowerCase();
+      let replyText = '';
 
-      if (lower.includes('delay') || lower.includes('late')) {
-        const delayed = projects.filter((p) => p.status === 'delayed' || (p.daysDelayed && p.daysDelayed > 0));
-        if (delayed.length > 0) {
-          replyText = `⚠️ **Radar Delay Diagnostic**: Found ${delayed.length} delayed project: **${delayed[0].name}** (Code: ${delayed[0].code}). Client: **${delayed[0].clientName}**. Current delay is **${delayed[0].daysDelayed || 2} days** behind SLA schedule. Key bottleneck: Third-party mobile sandbox regression checks.`;
+      if (lower.includes('delayed') || lower.includes('delay')) {
+        const delayedList = projects.filter((p) => p.status === 'delayed' || (p.daysDelayed && p.daysDelayed > 0));
+        if (delayedList.length > 0) {
+          replyText = `⚠️ **Critical Radar Alert:** There is currently ${delayedList.length} delayed project:\n\n• **${delayedList[0].name}** (Code: ${delayedList[0].code}) is delayed by **${delayedList[0].daysDelayed || 2} days**. Root cause: mobile checkout gateway QA review in progress. Assigned Manager: ${delayedList[0].managerName}. Recommended action: allocate Marcus Chen to close out the remaining 2 styling issues.`;
         } else {
-          replyText = '✓ All active projects are currently operating within nominal SLA schedules.';
+          replyText = '✅ **All Systems Green:** No delayed projects detected on the delivery radar. All sprints are tracking within SLA milestones.';
         }
-      } else if (lower.includes('velocity') || lower.includes('sprint')) {
-        replyText = `🚀 **Sprint 44 Velocity Telemetry**: Current sprint has **${performance.sprintVelocity[4].completed} story points completed** out of **${performance.sprintVelocity[4].committed} committed** (90% completion velocity). SLA Delivery Rate is currently standing strong at **${performance.slaDeliveryRate}%**.`;
-      } else if (lower.includes('capacity') || lower.includes('available')) {
-        const availableFL = freelancers.filter((f) => f.status === 'available');
-        replyText = `👥 **Workforce Capacity Overview**: Internal engineering squad is currently at 88% capacity utilization. We have **${availableFL.length} verified senior contractors** ready for immediate deployment in the Freelancer Network: ${availableFL.map((f) => f.fullName + ' (' + f.skillDomain + ')').join(', ')}.`;
-      } else if (lower.includes('finance') || lower.includes('revenue') || lower.includes('payroll')) {
+      } else if (lower.includes('revenue') || lower.includes('profit') || lower.includes('finance')) {
         if (currentRole === 'team_member' || currentRole === 'freelancer') {
-          replyText = '🔒 **Access Denied**: Under DigiWorku RBAC security protocol, financial metrics and payroll ledgers are strictly restricted to Super Admin and Finance Manager roles.';
+          replyText = `🔒 **Access Restricted:** Financial and profitability reporting requires Super Admin, Operations Manager, or Finance Manager clearance. Please contact your Department Lead or Vir Kanwlia for executive financial metrics.`;
         } else {
-          replyText = `💰 **Financial Intelligence**: Total YTD Revenue is **₹${financialSummary.totalRevenueYTD.toLocaleString()}** with a healthy **${financialSummary.profitMarginPercent}% net profit margin**. Outstanding client receivables stand at **₹${financialSummary.pendingInvoicesAmount.toLocaleString()}** across 2 unpaid invoices.`;
+          replyText = `📊 **Real-time Financial Snapshot (DigiWorku India):**\n\n• **Monthly Revenue:** ₹${financialSummary.monthlyRevenue.toLocaleString('en-IN')}\n• **Collected Revenue:** ₹${financialSummary.collectedRevenue.toLocaleString('en-IN')}\n• **Outstanding Receivables:** ₹${financialSummary.outstandingRevenue.toLocaleString('en-IN')}\n• **Realized Net Profit:** ₹${financialSummary.netProfit.toLocaleString('en-IN')} (${financialSummary.profitMarginPercent}% Margin)\n• **Freelancer Commitments:** ₹${financialSummary.freelancerCommitments.toLocaleString('en-IN')}\n\nTop performing account: **Apex Financial Technologies Ltd.** (₹18.50 Lakh contract).`;
         }
+      } else if (lower.includes('qc') || lower.includes('approval') || lower.includes('review') || lower.includes('gate')) {
+        const pendingQc = qcReviews.filter((q) => q.decision === 'pending' || !q.deliveryAuthorized);
+        replyText = `🛡️ **Quality Assurance & Gate Status:**\n\n• **Total Active Audits:** ${qcReviews.length}\n• **Pending Gate Approvals:** ${pendingQc.length}\n• **Authorized for Delivery:** ${qcReviews.filter((q) => q.deliveryAuthorized).length}\n\nKey review in progress: **${qcReviews[0]?.projectName || 'Nordic Living'} — ${qcReviews[0]?.milestoneTitle || 'Milestone 2'}** (Audit Score: ${qcReviews[0]?.overallScore || 92}/100). Final client delivery is locked until QA certification passes.`;
+      } else if (lower.includes('task') || lower.includes('pending task') || lower.includes('todo')) {
+        const inProg = tasks.filter((t) => t.status === 'in_progress');
+        const inReview = tasks.filter((t) => t.status === 'review');
+        replyText = `📋 **Operational Tasks Overview (Fokys Board):**\n\n• **In Progress:** ${inProg.length} tasks\n• **In QC Review:** ${inReview.length} tasks\n• **Scheduled Next:** ${tasks.filter((t) => t.status === 'scheduled').length} tasks\n\nHigh Priority Focus: **${inProg[0]?.title || 'Checkout Flow'}** assigned to ${inProg[0]?.assignedTo?.join(', ') || 'Rohit Verma'}.`;
+      } else if (lower.includes('proposal') || lower.includes('quote') || lower.includes('draft')) {
+        replyText = `📄 **DigiWorku Proposal Generator Draft:**\n\n**Client:** Nordic Living India\n**Scope:** 1. Website Development (₹1,85,000) + 2. UI/UX Design System (₹95,000)\n**Subtotal:** ₹2,80,000\n**GST (18%):** ₹50,400\n**Total Quotation:** ₹3,30,400 INR\n**Estimated Delivery:** 35 Business Days with 100-Point QA Certification.\n\nReady to emit formal proposal in CRM Module with 1-click project provisioning.`;
+      } else if (lower.includes('velocity') || lower.includes('sprint') || lower.includes('performance')) {
+        replyText = `🚀 **Sprint Velocity Analysis:**\n\nCurrent Sprint (Sprint 44) has **55 out of 60** committed points delivered (91.6% sprint progress). Overall SLA delivery rate stands at **${performance.slaDeliveryRate}%** with a quality benchmark of **${performance.overallQualityScore}/100**. Top performer this sprint: **Marcus Chen** with 28 completed tasks and 99.4% accuracy.`;
+      } else if (lower.includes('freelancer') || lower.includes('payout')) {
+        const pendingPayouts = freelancerPayouts.filter((p) => p.status === 'eligible' || p.status === 'pending_approval');
+        replyText = `💼 **Freelancer Network Status:**\n\nActive talent pool: **${freelancers.length} specialists** across UI/UX, Mobile Engineering and SRE.\n• Available now: **${freelancers.filter((f) => f.status === 'available').length} freelancers**\n• Pending payout requests: **${pendingPayouts.length}** totaling ₹${pendingPayouts.reduce((a, b) => a + b.amount, 0).toLocaleString('en-IN')}.\n\nAll freelancer deliverables pass strict QC before payouts become eligible.`;
       } else {
-        replyText = `Understood, ${currentUser.fullName}. I have cross-referenced the DigiWorku Operations Hub. We have ${projects.filter((p) => p.status === 'active').length} active projects running, ${tasks.filter((t) => t.status !== 'done').length} pending tasks in the Kanban pipeline, and ${attendanceRecords.filter((a) => a.status === 'present').length} team members currently on-duty.`;
+        replyText = `I have cross-analyzed your inquiry against DigiWorku's live operations database. All 14 modules (CRM, Projects, Fokys Tasks, Freelancer Network, Finance, QC Engine) are synchronized. Let me know if you would like me to generate a client proposal, inspect QC checklist items, or reconcile pending invoices.`;
       }
 
       const aiReply: AIMessage = {
@@ -991,7 +1199,82 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setAiMessages((prev) => [...prev, aiReply]);
       setIsAITyping(false);
-    }, 700);
+    }, 600);
+  };
+
+  // Notifications
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
+    const saved = localStorage.getItem('digiworku_notifications_v4');
+    return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
+  });
+  useEffect(() => {
+    localStorage.setItem('digiworku_notifications_v4', JSON.stringify(notifications));
+  }, [notifications]);
+
+  const markNotificationAsRead = (id: string) => {
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+  };
+
+  const markAllNotificationsAsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    showToast('All notifications marked as read', 'info');
+  };
+
+  const clearNotifications = () => {
+    setNotifications([]);
+    showToast('Notification center cleared', 'info');
+  };
+
+  // Audit Logs
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
+    const saved = localStorage.getItem('digiworku_audit_logs_v4');
+    return saved ? JSON.parse(saved) : INITIAL_AUDIT_LOGS;
+  });
+  useEffect(() => {
+    localStorage.setItem('digiworku_audit_logs_v4', JSON.stringify(auditLogs));
+  }, [auditLogs]);
+
+  const logAuditEvent = (
+    action: string,
+    module: NavModule,
+    details: string,
+    status: 'success' | 'warning' | 'error' = 'success'
+  ) => {
+    const newLog: AuditLog = {
+      id: `aud-${Date.now()}`,
+      timestamp: new Date().toLocaleString(),
+      actorId: currentUser.id,
+      actorName: currentUser.fullName,
+      actorRole: currentRole,
+      action,
+      module,
+      details,
+      status
+    };
+    setAuditLogs((prev) => [newLog, ...prev]);
+  };
+
+  // Company Settings
+  const [companySettings, setCompanySettings] = useState<CompanySettings>(() => {
+    const saved = localStorage.getItem('digiworku_company_settings_v4');
+    return saved ? JSON.parse(saved) : INITIAL_COMPANY_SETTINGS;
+  });
+  useEffect(() => {
+    localStorage.setItem('digiworku_company_settings_v4', JSON.stringify(companySettings));
+  }, [companySettings]);
+
+  const updateCompanySettings = (settings: Partial<CompanySettings>) => {
+    setCompanySettings((prev) => ({ ...prev, ...settings }));
+    showToast('System configuration saved', 'success');
+    logAuditEvent('Settings Updated', 'settings', 'Updated global company operating settings.');
+  };
+
+  // Toast
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'warning' | 'error' | 'info' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'warning' | 'error' | 'info' = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
   };
 
   return (
@@ -1003,6 +1286,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeModule,
         setActiveModule,
         hasAccessTo,
+        dateFilter,
+        setDateFilter,
+        services,
+        toggleServiceEnabled,
+        updateServiceItem,
         isCheckedIn,
         checkInTime,
         elapsedSeconds,
@@ -1019,13 +1307,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addTask,
         updateTask,
         deleteTask,
+        submitTaskWork,
         clients,
         updateClientStatus,
         addClient,
         updateClient,
         deleteClient,
+        convertLeadToClient,
         quotes,
         addQuote,
+        convertProposalToProject,
         projects,
         updateMilestoneStatus,
         addProject,
@@ -1038,13 +1329,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateFreelancer,
         deleteFreelancer,
         allocateFreelancerToProject,
+        freelancerPayouts,
+        releaseFreelancerPayout,
+        requestFreelancerPayout,
         payroll,
         invoices,
+        expenses,
         financialSummary,
         processPayrollItem,
         createInvoice,
         updateInvoice,
         deleteInvoice,
+        recordInvoicePayment,
+        addBusinessExpense,
         addExpense,
         channels,
         activeChannelId,
@@ -1055,6 +1352,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         submitQcDecision,
         toggleQcChecklistItem,
         submitDeliverableForQC,
+        approveQcAndAuthorizeDelivery,
+        requestQcRevision,
         performance,
         employees,
         toggleEmployeeActive,

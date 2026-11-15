@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { RestrictedAccessView } from '../modals/RestrictedAccessView';
-import { InvoiceRecord } from '../../types';
+import { InvoiceRecord, BusinessExpense, FreelancerPayout } from '../../types';
 import {
-  CircleDollarSign,
+  IndianRupee,
   TrendingUp,
   FileText,
   CreditCard,
@@ -15,7 +15,14 @@ import {
   Download,
   Calendar,
   Layers,
-  X
+  X,
+  PieChart,
+  DollarSign,
+  Send,
+  Building,
+  Check,
+  AlertTriangle,
+  ArrowRight
 } from 'lucide-react';
 
 export const FinanceModule: React.FC = () => {
@@ -24,471 +31,908 @@ export const FinanceModule: React.FC = () => {
     hasAccessTo,
     payroll,
     invoices,
+    expenses,
     financialSummary,
     processPayrollItem,
     createInvoice,
+    recordInvoicePayment,
+    addBusinessExpense,
+    freelancerPayouts,
+    releaseFreelancerPayout,
     clients,
     projects,
-    darkMode
+    darkMode,
+    showToast
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'payroll' | 'invoices'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'payouts' | 'expenses' | 'payroll'>('overview');
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<InvoiceRecord | null>(null);
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
 
   // New Invoice Form
   const [invClientId, setInvClientId] = useState(clients[0]?.id || '');
   const [invProjectId, setInvProjectId] = useState(projects[0]?.id || '');
-  const [invAmount, setInvAmount] = useState('250000');
-  const [invDueDate, setInvDueDate] = useState('2026-12-01');
+  const [invAmount, setInvAmount] = useState('650000');
+  const [invDueDate, setInvDueDate] = useState('2026-12-10');
 
-  // RBAC Guardrail: Strictly restrict if not Super Admin or Finance Manager
+  // Record Payment Form
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<InvoiceRecord['payments'][0]['paymentMethod']>('NEFT/IMPS');
+  const [paymentNotes, setPaymentNotes] = useState('');
+
+  // New Expense Form
+  const [expCategory, setExpCategory] = useState<BusinessExpense['category']>('Software & Tools');
+  const [expDesc, setExpDesc] = useState('');
+  const [expAmount, setExpAmount] = useState('25000');
+  const [expProjectId, setExpProjectId] = useState(projects[0]?.id || '');
+
+  // RBAC Guardrail: Strictly restrict if not authorized
   if (!hasAccessTo('finance')) {
-    return <RestrictedAccessView moduleName="Finance & Payroll" />;
+    return <RestrictedAccessView moduleName="Finance & Accounting" />;
   }
 
   const handleCreateInvoice = (e: React.FormEvent) => {
     e.preventDefault();
     const client = clients.find((c) => c.id === invClientId) || clients[0];
     const project = projects.find((p) => p.id === invProjectId) || projects[0];
-    const amount = parseFloat(invAmount) || 150000;
+    const subtotal = parseFloat(invAmount) || 100000;
+    const taxAmount = Math.round(subtotal * 0.18);
+    const totalAmount = subtotal + taxAmount;
 
     createInvoice({
-      invoiceNumber: `INV-2026-${Math.floor(8900 + Math.random() * 99)}`,
+      invoiceNumber: `DW-INV-2026-${Math.floor(8900 + Math.random() * 99)}`,
       clientId: client.id,
       clientName: client.companyName,
+      clientEmail: client.email,
       projectId: project.id,
       projectName: project.name,
       issueDate: new Date().toISOString().split('T')[0],
       dueDate: invDueDate,
-      subtotal: amount,
-      taxAmount: amount * 0.18,
-      totalAmount: amount * 1.18,
+      subtotal,
+      taxAmount,
+      totalAmount,
       status: 'sent'
     });
 
     setShowInvoiceModal(false);
   };
 
+  const handleOpenPayment = (inv: InvoiceRecord) => {
+    setSelectedInvoiceForPayment(inv);
+    const remaining = inv.totalAmount - inv.amountPaid;
+    setPaymentAmount(String(remaining));
+    setShowPaymentModal(true);
+  };
+
+  const handleRecordPayment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedInvoiceForPayment) return;
+    const amt = parseFloat(paymentAmount) || 0;
+    if (amt <= 0) {
+      showToast('Please enter a valid payment amount', 'warning');
+      return;
+    }
+
+    recordInvoicePayment(selectedInvoiceForPayment.id, amt, paymentMethod, paymentNotes);
+    setShowPaymentModal(false);
+  };
+
+  const handleAddExpense = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!expDesc.trim()) return;
+    const prj = projects.find((p) => p.id === expProjectId);
+
+    addBusinessExpense({
+      category: expCategory,
+      description: expDesc,
+      amount: parseFloat(expAmount) || 0,
+      date: new Date().toISOString().split('T')[0],
+      projectId: prj?.id,
+      projectName: prj?.name,
+      loggedBy: 'Finance Ops',
+      status: 'approved'
+    });
+
+    setShowExpenseModal(false);
+    setExpDesc('');
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto select-none">
-      {/* Security Classification Banner */}
-      <div className={`p-3.5 rounded-xl border flex items-center justify-between text-xs ${
-        darkMode ? 'bg-purple-950/20 border-purple-500/30' : 'bg-purple-50 border-purple-200 text-purple-900'
-      }`}>
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* 1. TOP HEADER & METRIC BANNER */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className={`text-xl md:text-2xl font-black font-display tracking-tight ${
+            darkMode ? 'text-white' : 'text-slate-900'
+          }`}>
+            Finance &amp; Corporate Ledger
+          </h1>
+          <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+            Strictly denominated in INR (₹). Invoicing, installment collections, project profitability &amp; payouts
+          </p>
+        </div>
+
         <div className="flex items-center gap-2">
-          <Shield className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
-          <span className={`font-bold uppercase tracking-wider ${darkMode ? 'text-white' : 'text-purple-950'}`}>
-            RESTRICTED EXECUTIVE FINANCE VAULT
-          </span>
-          <span className={darkMode ? 'text-slate-400' : 'text-purple-700'}>• Clearance: Level 4 Super Admin &amp; Finance Chief</span>
+          <button
+            onClick={() => setShowInvoiceModal(true)}
+            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-blue-500/20 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Generate Client Invoice</span>
+          </button>
+
+          <button
+            onClick={() => setShowExpenseModal(true)}
+            className={`px-3.5 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+              darkMode ? 'bg-[#14171d] border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700 shadow-xs'
+            }`}
+          >
+            <Plus className="w-4 h-4 text-amber-500" />
+            <span>Log Expense</span>
+          </button>
         </div>
-        <span className="font-mono text-[10px] bg-purple-500/10 text-purple-600 dark:text-purple-300 px-2 py-0.5 rounded border border-purple-500/20 font-bold">
-          AUDITED UNDER GAAP &amp; GST
-        </span>
       </div>
 
-      {/* Tabs */}
-      <div className={`flex items-center gap-2 border-b pb-3 ${darkMode ? 'border-slate-800' : 'border-slate-200'}`}>
-        <button
-          onClick={() => setActiveTab('overview')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'overview'
-              ? 'bg-[#00c853]/15 text-[#00c853] border border-[#00c853]/30'
-              : darkMode 
-                ? 'text-slate-400 hover:text-white hover:bg-slate-800/60' 
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <TrendingUp className="w-4 h-4" />
-          <span>P&amp;L Health &amp; Financial Trend</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('payroll')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'payroll'
-              ? 'bg-[#00c853]/15 text-[#00c853] border border-[#00c853]/30'
-              : darkMode 
-                ? 'text-slate-400 hover:text-white hover:bg-slate-800/60' 
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <CreditCard className="w-4 h-4" />
-          <span>Employee Payroll Ledger</span>
-          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
-            darkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'
-          }`}>
-            {payroll.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('invoices')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'invoices'
-              ? 'bg-[#00c853]/15 text-[#00c853] border border-[#00c853]/30'
-              : darkMode 
-                ? 'text-slate-400 hover:text-white hover:bg-slate-800/60' 
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <FileText className="w-4 h-4" />
-          <span>Client Invoices &amp; Receivables</span>
-          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[#00c853]/20 text-[#00c853] font-mono font-bold">
-            ₹{(financialSummary.pendingInvoicesAmount / 1000).toFixed(0)}k
-          </span>
-        </button>
-      </div>
-
-      {/* Tab 1: P&L Health Overview */}
-      {activeTab === 'overview' && (
-        <div className="space-y-6">
-          {/* Top 4 Financial KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className={`p-5 rounded-2xl border transition-colors duration-200 ${
-              darkMode ? 'bg-[#14171d] border-slate-800 shadow-xl' : 'bg-white border-slate-200 shadow-sm'
-            }`}>
-              <span className={`text-[11px] font-semibold uppercase tracking-wider ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>YTD Revenue</span>
-              <div className={`text-2xl font-black font-mono mt-1 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-                ₹{(financialSummary.totalRevenueYTD / 100000).toFixed(2)} Lakhs
-              </div>
-              <span className="text-[11px] text-[#00c853] font-bold flex items-center mt-1">
-                <ArrowUpRight className="w-3.5 h-3.5" /> +28% vs previous fiscal cycle
-              </span>
-            </div>
-
-            <div className={`p-5 rounded-2xl border transition-colors duration-200 ${
-              darkMode ? 'bg-[#14171d] border-slate-800 shadow-xl' : 'bg-white border-slate-200 shadow-sm'
-            }`}>
-              <span className={`text-[11px] font-semibold uppercase tracking-wider ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Monthly Revenue (Nov)</span>
-              <div className="text-2xl font-black text-[#00c853] font-mono mt-1">
-                ₹{financialSummary.monthlyRevenue.toLocaleString()}
-              </div>
-              <span className={`text-[11px] mt-1 block ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Forecast: ₹15L (Target Achieved)</span>
-            </div>
-
-            <div className={`p-5 rounded-2xl border transition-colors duration-200 ${
-              darkMode ? 'bg-[#14171d] border-slate-800 shadow-xl' : 'bg-white border-slate-200 shadow-sm'
-            }`}>
-              <span className={`text-[11px] font-semibold uppercase tracking-wider ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Monthly Expenses</span>
-              <div className={`text-2xl font-black font-mono mt-1 ${darkMode ? 'text-slate-200' : 'text-slate-800'}`}>
-                ₹{financialSummary.totalExpenses.toLocaleString()}
-              </div>
-              <span className={`text-[11px] mt-1 block ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Payroll, Cloud &amp; Infra</span>
-            </div>
-
-            <div className={`p-5 rounded-2xl border ${
-              darkMode 
-                ? 'bg-gradient-to-br from-[#14171d] to-[#041a12] border-[#00c853]/30 shadow-xl' 
-                : 'bg-emerald-50/50 border-emerald-200 shadow-sm'
-            }`}>
-              <span className="text-[11px] font-bold text-[#00c853] uppercase tracking-wider">Net Operating Profit</span>
-              <div className={`text-2xl font-black font-mono mt-1 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-                ₹{financialSummary.netProfit.toLocaleString()}
-              </div>
-              <span className="text-[11px] text-[#00c853] font-bold mt-1 block">
-                {financialSummary.profitMarginPercent}% Operating Margin
-              </span>
-            </div>
-          </div>
-
-          {/* Monthly Trend Visual Graph (Last 6 Months) */}
-          <div className={`rounded-2xl p-6 space-y-4 border transition-colors duration-200 ${
-            darkMode ? 'bg-[#14171d] border-slate-800 shadow-xl' : 'bg-white border-slate-200 shadow-sm'
-          }`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>Monthly Cash Flow &amp; Profit Trend (2026)</h3>
-                <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Revenue (emerald green) vs. Operating Expenses (slate)</p>
-              </div>
-            </div>
-
-            <div className={`grid grid-cols-6 gap-3 items-end pt-8 h-64 border-b pb-4 ${
-              darkMode ? 'border-slate-800' : 'border-slate-200'
-            }`}>
-              {financialSummary.monthlyTrend.map((m) => {
-                const revHeight = (m.revenue / 170000) * 100;
-                const expHeight = (m.expenses / 170000) * 100;
-
-                return (
-                  <div key={m.month} className="flex flex-col items-center gap-2 h-full justify-end">
-                    <div className="flex items-end gap-1.5 w-full justify-center h-full">
-                      {/* Revenue Bar */}
-                      <div
-                        className="w-5 md:w-8 bg-[#00c853] rounded-t-md hover:opacity-90 transition-all cursor-pointer relative group"
-                        style={{ height: `${revHeight}%` }}
-                        title={`Revenue: ₹${m.revenue.toLocaleString()}`}
-                      >
-                        <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-black px-1.5 py-0.5 rounded text-[9px] font-mono text-emerald-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20">
-                          ₹{(m.revenue / 1000).toFixed(0)}k
-                        </div>
-                      </div>
-
-                      {/* Expense Bar */}
-                      <div
-                        className={`w-5 md:w-8 rounded-t-md transition-all cursor-pointer relative group ${
-                          darkMode ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-300 hover:bg-slate-400'
-                        }`}
-                        style={{ height: `${expHeight}%` }}
-                        title={`Expenses: ₹${m.expenses.toLocaleString()}`}
-                      >
-                        <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-black px-1.5 py-0.5 rounded text-[9px] font-mono text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20">
-                          ₹{(m.expenses / 1000).toFixed(0)}k
-                        </div>
-                      </div>
-                    </div>
-                    <span className={`text-[11px] font-mono ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>{m.month}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab 2: Employee Payroll Ledger */}
-      {activeTab === 'payroll' && (
-        <div className={`rounded-2xl border overflow-hidden transition-colors duration-200 ${
-          darkMode ? 'bg-[#14171d] border-slate-800 shadow-xl' : 'bg-white border-slate-200 shadow-sm'
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* 2. FINANCIAL TELEMETRY CARDS (Strict INR ₹) */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className={`p-5 rounded-3xl border transition-all space-y-2 ${
+          darkMode ? 'bg-[#14171d] border-slate-800 shadow-xl' : 'bg-white border-slate-200/80 shadow-xs'
         }`}>
-          <div className={`p-4 border-b flex items-center justify-between ${
-            darkMode ? 'border-slate-800 bg-[#0f1115]' : 'border-slate-100 bg-slate-50'
-          }`}>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Monthly Revenue</span>
+          <div className="flex items-baseline gap-2">
+            <span className={`text-2xl lg:text-3xl font-black font-mono ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+              ₹{(financialSummary.monthlyRevenue / 100000).toFixed(2)}L
+            </span>
+            <span className="text-xs font-bold text-[#00c853] flex items-center bg-[#00c853]/10 px-2 py-0.5 rounded-full border border-[#00c853]/20">
+              <ArrowUpRight className="w-3.5 h-3.5" /> +28.4%
+            </span>
+          </div>
+          <div className="text-[11px] text-slate-400 font-semibold flex items-center justify-between">
+            <span>Collected: ₹{(financialSummary.collectedRevenue / 100000).toFixed(2)}L</span>
+            <span className="text-amber-500 font-bold">Due: ₹{(financialSummary.outstandingRevenue / 100000).toFixed(2)}L</span>
+          </div>
+        </div>
+
+        <div className={`p-5 rounded-3xl border transition-all space-y-2 ${
+          darkMode ? 'bg-[#14171d] border-slate-800 shadow-xl' : 'bg-white border-slate-200/80 shadow-xs'
+        }`}>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Realized Net Profit</span>
+          <div className="flex items-baseline gap-2">
+            <span className={`text-2xl lg:text-3xl font-black font-mono text-[#00c853]`}>
+              ₹{(financialSummary.netProfit / 100000).toFixed(2)}L
+            </span>
+            <span className="text-xs font-bold text-blue-500 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20">
+              {financialSummary.profitMarginPercent}% Margin
+            </span>
+          </div>
+          <div className="text-[11px] text-slate-400 font-semibold">
+            Total Expenses: ₹{(financialSummary.totalExpenses / 100000).toFixed(2)}L
+          </div>
+        </div>
+
+        <div className={`p-5 rounded-3xl border transition-all space-y-2 ${
+          darkMode ? 'bg-[#14171d] border-slate-800 shadow-xl' : 'bg-white border-slate-200/80 shadow-xs'
+        }`}>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Freelancer Commitments</span>
+          <div className="flex items-baseline gap-2">
+            <span className={`text-2xl lg:text-3xl font-black font-mono text-purple-500`}>
+              ₹{(financialSummary.freelancerCommitments / 100000).toFixed(2)}L
+            </span>
+            <span className="text-xs font-bold text-purple-500 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20">
+              {freelancerPayouts.filter((p) => p.status === 'eligible').length} Pending
+            </span>
+          </div>
+          <div className="text-[11px] text-slate-400 font-semibold">
+            Strictly gated by QC deliverable acceptance
+          </div>
+        </div>
+
+        <div className={`p-5 rounded-3xl border transition-all space-y-2 ${
+          darkMode ? 'bg-[#14171d] border-slate-800 shadow-xl' : 'bg-white border-slate-200/80 shadow-xs'
+        }`}>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Annual YTD Revenue</span>
+          <div className="flex items-baseline gap-2">
+            <span className={`text-2xl lg:text-3xl font-black font-mono ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+              ₹{(financialSummary.totalRevenueYTD / 10000000).toFixed(2)} Cr
+            </span>
+            <span className="text-xs font-bold text-[#00c853] bg-[#00c853]/10 px-2 py-0.5 rounded-full border border-[#00c853]/20">
+              FY 2026-27
+            </span>
+          </div>
+          <div className="text-[11px] text-slate-400 font-semibold">
+            Corporate GST filings: Up to date (GSTR-3B)
+          </div>
+        </div>
+      </div>
+
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* 3. NAVIGATION TABS */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      <div className={`flex items-center gap-1.5 p-1.5 rounded-2xl border w-fit ${
+        darkMode ? 'bg-[#14171d] border-slate-800' : 'bg-slate-100 border-slate-200'
+      }`}>
+        {(['overview', 'invoices', 'payouts', 'expenses', 'payroll'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 rounded-xl text-xs font-bold capitalize transition-all cursor-pointer ${
+              activeTab === tab
+                ? 'bg-blue-600 text-white shadow-sm'
+                : darkMode
+                  ? 'text-slate-400 hover:text-white'
+                  : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            {tab === 'overview'
+              ? 'Project Profitability'
+              : tab === 'payouts'
+                ? 'Freelancer Payouts'
+                : tab}
+          </button>
+        ))}
+      </div>
+
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* 4. TAB CONTENTS */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+
+      {/* TAB 1: PROJECT PROFITABILITY OVERVIEW */}
+      {activeTab === 'overview' && (
+        <div className={`rounded-3xl border p-6 space-y-4 ${
+          darkMode ? 'bg-[#14171d] border-slate-800 shadow-xl' : 'bg-white border-slate-200/80 shadow-xs'
+        }`}>
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
             <div>
-              <h3 className={`text-xs font-bold uppercase tracking-wider ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-                Monthly Staff Compensation Ledger
+              <h3 className={`text-base font-black ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                Project-wise Profitability &amp; Cost Ledger
               </h3>
-              <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Pay Period: November 2026</p>
+              <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                Realized profit calculation: Client Revenue minus staff salaries, freelancer payouts, and infrastructure expenses
+              </p>
             </div>
-            <div className="text-xs font-mono text-[#00c853] font-bold">
-              Total Disbursement: ₹{payroll.reduce((acc, p) => acc + p.netSalary, 0).toLocaleString()}
-            </div>
+            <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-[#00c853]/10 text-[#00c853] border border-[#00c853]/20">
+              Avg Gross Margin: 56.8%
+            </span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className={`uppercase tracking-wider font-semibold border-b ${
-                darkMode ? 'bg-[#090d15] text-slate-400 border-slate-800' : 'bg-slate-50 text-slate-500 border-slate-200'
-              }`}>
-                <tr>
-                  <th className="py-3 px-4">Employee</th>
-                  <th className="py-3 px-4">Role / Department</th>
-                  <th className="py-3 px-4">Base Salary</th>
-                  <th className="py-3 px-4">Bonus</th>
-                  <th className="py-3 px-4">Deductions</th>
-                  <th className="py-3 px-4">Net Payout</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Action</th>
+              <thead>
+                <tr className={`border-b text-[10px] uppercase tracking-wider ${
+                  darkMode ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-500'
+                }`}>
+                  <th className="py-3 px-4 font-bold">Project Name</th>
+                  <th className="py-3 px-4 font-bold">Client Account</th>
+                  <th className="py-3 px-4 font-bold text-right">Agreed Budget</th>
+                  <th className="py-3 px-4 font-bold text-right">Actual Cost Spent</th>
+                  <th className="py-3 px-4 font-bold text-right">Net Profit</th>
+                  <th className="py-3 px-4 font-bold text-right">Net Margin</th>
+                  <th className="py-3 px-4 font-bold text-center">Status</th>
                 </tr>
               </thead>
-              <tbody className={`divide-y ${
-                darkMode ? 'divide-slate-800/60 text-slate-300' : 'divide-slate-100 text-slate-700'
-              }`}>
-                {payroll.map((pay) => (
-                  <tr key={pay.id} className={darkMode ? 'hover:bg-slate-900/60 transition-colors' : 'hover:bg-slate-50/80 transition-colors'}>
-                    <td className={`py-3 px-4 font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>{pay.employeeName}</td>
-                    <td className="py-3 px-4">
-                      <div className={`font-medium ${darkMode ? 'text-slate-200' : 'text-slate-800'}`}>{pay.role}</div>
-                      <div className={`text-[10px] ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>{pay.department}</div>
-                    </td>
-                    <td className="py-3 px-4 font-mono font-semibold">₹{pay.baseSalary.toLocaleString()}</td>
-                    <td className="py-3 px-4 font-mono text-[#00c853] font-bold">+₹{pay.bonus.toLocaleString()}</td>
-                    <td className="py-3 px-4 font-mono text-rose-500 font-semibold">-₹{pay.deductions.toLocaleString()}</td>
-                    <td className={`py-3 px-4 font-mono font-bold text-sm ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-                      ₹{pay.netSalary.toLocaleString()}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded-full bg-[#00c853]/15 text-[#00c853] border border-[#00c853]/30 text-[10px] font-bold uppercase">
-                        {pay.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      {pay.status !== 'paid' ? (
-                        <button
-                          onClick={() => processPayrollItem(pay.id)}
-                          className="px-3 py-1 rounded-lg bg-[#00c853] hover:bg-[#00af48] text-white font-bold text-[11px] transition-all cursor-pointer shadow-xs"
-                        >
-                          Disburse
-                        </button>
-                      ) : (
-                        <span className="text-[11px] text-[#00c853] font-mono font-bold">Disbursed ✓</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-medium">
+                {projects.map((proj) => {
+                  const profit = proj.budget - proj.spent;
+                  const margin = proj.budget > 0 ? Math.round((profit / proj.budget) * 100) : 0;
+
+                  return (
+                    <tr key={proj.id} className="hover:bg-slate-50 dark:hover:bg-[#0f1115] transition-colors">
+                      <td className="py-3.5 px-4 font-bold">
+                        <div className="text-slate-900 dark:text-white">{proj.name}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">{proj.code}</div>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
+                        {proj.clientName}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
+                        ₹{proj.budget.toLocaleString('en-IN')}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono text-amber-500 font-bold">
+                        ₹{proj.spent.toLocaleString('en-IN')}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono font-bold text-[#00c853]">
+                        ₹{profit.toLocaleString('en-IN')}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono font-black text-blue-500">
+                        {margin}%
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                          proj.status === 'delayed'
+                            ? 'bg-rose-500/10 text-rose-500'
+                            : proj.status === 'completed' || proj.status === 'approved'
+                              ? 'bg-[#00c853]/10 text-[#00c853]'
+                              : 'bg-blue-500/10 text-blue-500'
+                        }`}>
+                          {proj.status.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* Tab 3: Client Invoices */}
+      {/* TAB 2: INVOICES & PARTIAL INSTALLMENTS */}
       {activeTab === 'invoices' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className={`text-xs font-bold uppercase tracking-wider ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-              Issued Client Invoices &amp; Accounts Receivable
-            </h3>
+        <div className={`rounded-3xl border p-6 space-y-4 ${
+          darkMode ? 'bg-[#14171d] border-slate-800 shadow-xl' : 'bg-white border-slate-200/80 shadow-xs'
+        }`}>
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+            <div>
+              <h3 className={`text-base font-black ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                Corporate Invoices &amp; Installment Schedules
+              </h3>
+              <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                Track milestone invoices, partial installment receipts, GST breakdowns and due dates
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {invoices.map((inv) => {
+              const remaining = inv.totalAmount - inv.amountPaid;
+              const isPaid = inv.status === 'paid';
+              const isPartial = inv.status === 'partially_paid';
+
+              return (
+                <div
+                  key={inv.id}
+                  className={`p-4 rounded-2xl border space-y-3 transition-all ${
+                    darkMode ? 'bg-[#0f1115] border-slate-800' : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-black text-blue-500">{inv.invoiceNumber}</span>
+                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                          isPaid
+                            ? 'bg-[#00c853]/10 text-[#00c853]'
+                            : isPartial
+                              ? 'bg-amber-500/10 text-amber-500'
+                              : 'bg-blue-500/10 text-blue-500'
+                        }`}>
+                          {inv.status.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                      <h4 className={`text-sm font-bold mt-0.5 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                        {inv.clientName} • {inv.projectName}
+                      </h4>
+                      <div className="text-[11px] text-slate-400 flex items-center gap-3 mt-1 font-mono">
+                        <span>Issued: {inv.issueDate}</span>
+                        <span>Due: {inv.dueDate}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Total with GST</span>
+                        <div className={`text-base font-black font-mono ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                          ₹{inv.totalAmount.toLocaleString('en-IN')}
+                        </div>
+                        <div className="text-[11px] font-mono font-bold">
+                          {isPaid ? (
+                            <span className="text-[#00c853]">Fully Settled</span>
+                          ) : (
+                            <span className="text-amber-500">Due: ₹{remaining.toLocaleString('en-IN')}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {!isPaid && (
+                        <button
+                          onClick={() => handleOpenPayment(inv)}
+                          className="px-3.5 py-2 rounded-xl bg-[#00c853] hover:bg-[#00b047] text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-[#00c853]/20 cursor-pointer"
+                        >
+                          <CreditCard className="w-3.5 h-3.5" />
+                          <span>Record Payment</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Payment history list */}
+                  {inv.payments && inv.payments.length > 0 && (
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-800 text-[11px] space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Payment Receipts:
+                      </span>
+                      {inv.payments.map((p) => (
+                        <div key={p.id} className="flex items-center justify-between text-slate-400 font-mono">
+                          <span>✓ Cleared ₹{p.amount.toLocaleString('en-IN')} via {p.paymentMethod} ({p.paidAt})</span>
+                          <span className="text-slate-500">Ref: {p.transactionReference}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: FREELANCER PAYOUTS DISBURSEMENT */}
+      {activeTab === 'payouts' && (
+        <div className={`rounded-3xl border p-6 space-y-4 ${
+          darkMode ? 'bg-[#14171d] border-slate-800 shadow-xl' : 'bg-white border-slate-200/80 shadow-xs'
+        }`}>
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+            <div>
+              <h3 className={`text-base font-black ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                Freelancer Compensation &amp; Payout Release Center
+              </h3>
+              <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                Gated by Quality Assurance. Payouts are released directly via UPI / NEFT with instant expense ledger sync
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {freelancerPayouts.map((payout) => {
+              const isPaid = payout.status === 'paid';
+              return (
+                <div
+                  key={payout.id}
+                  className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
+                    darkMode ? 'bg-[#0f1115] border-slate-800' : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                        isPaid
+                          ? 'bg-[#00c853]/10 text-[#00c853]'
+                          : payout.status === 'eligible'
+                            ? 'bg-blue-500/10 text-blue-500'
+                            : 'bg-amber-500/10 text-amber-500'
+                      }`}>
+                        {payout.status.replace(/_/g, ' ')}
+                      </span>
+                      <span className="text-xs font-bold text-slate-400">Due: {payout.dueOn}</span>
+                    </div>
+                    <h4 className={`text-sm font-black mt-1 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                      {payout.freelancerName} • {payout.projectName}
+                    </h4>
+                    <p className={`text-xs text-slate-400 mt-0.5`}>
+                      Deliverable: {payout.taskTitle}
+                    </p>
+                    {payout.paymentReference && (
+                      <span className="text-[10px] font-mono text-[#00c853] block mt-1">
+                        Cleared Ref: {payout.paymentReference} ({payout.paidAt})
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Agreed Payout</span>
+                      <span className="text-lg font-black font-mono text-[#00c853]">
+                        ₹{payout.amount.toLocaleString('en-IN')}
+                      </span>
+                    </div>
+
+                    {!isPaid && (
+                      <button
+                        onClick={() => releaseFreelancerPayout(payout.id)}
+                        className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-blue-500/20 cursor-pointer"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Disburse via UPI / NEFT</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: EXPENSES LEDGER */}
+      {activeTab === 'expenses' && (
+        <div className={`rounded-3xl border p-6 space-y-4 ${
+          darkMode ? 'bg-[#14171d] border-slate-800 shadow-xl' : 'bg-white border-slate-200/80 shadow-xs'
+        }`}>
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+            <div>
+              <h3 className={`text-base font-black ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                Business Operating Expenses (INR ₹)
+              </h3>
+              <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                Software licenses, hosting infrastructure, marketing campaigns and verified vendor disbursements
+              </p>
+            </div>
             <button
-              onClick={() => setShowInvoiceModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#00c853] hover:bg-[#00af48] text-white text-xs font-bold transition-all shadow-md shadow-[#00c853]/20 cursor-pointer"
+              onClick={() => setShowExpenseModal(true)}
+              className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Create Invoice</span>
+              <span>Add Expense</span>
             </button>
           </div>
 
-          <div className={`rounded-2xl border overflow-hidden transition-colors duration-200 ${
-            darkMode ? 'bg-[#14171d] border-slate-800 shadow-xl' : 'bg-white border-slate-200 shadow-sm'
-          }`}>
-            <table className="w-full text-left text-xs">
-              <thead className={`uppercase tracking-wider font-semibold border-b ${
-                darkMode ? 'bg-[#090d15] text-slate-400 border-slate-800' : 'bg-slate-50 text-slate-500 border-slate-200'
-              }`}>
-                <tr>
-                  <th className="py-3 px-4">Invoice #</th>
-                  <th className="py-3 px-4">Client Company</th>
-                  <th className="py-3 px-4">Project</th>
-                  <th className="py-3 px-4">Issue Date</th>
-                  <th className="py-3 px-4">Due Date</th>
-                  <th className="py-3 px-4">Amount</th>
-                  <th className="py-3 px-4">Status</th>
-                </tr>
-              </thead>
-              <tbody className={`divide-y ${
-                darkMode ? 'divide-slate-800/60 text-slate-300' : 'divide-slate-100 text-slate-700'
-              }`}>
-                {invoices.map((inv) => (
-                  <tr key={inv.id} className={darkMode ? 'hover:bg-slate-900/60 transition-colors' : 'hover:bg-slate-50/80 transition-colors'}>
-                    <td className={`py-3 px-4 font-mono font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>{inv.invoiceNumber}</td>
-                    <td className={`py-3 px-4 font-semibold ${darkMode ? 'text-slate-200' : 'text-slate-800'}`}>{inv.clientName}</td>
-                    <td className={`py-3 px-4 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>{inv.projectName}</td>
-                    <td className={`py-3 px-4 font-mono ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>{inv.issueDate}</td>
-                    <td className="py-3 px-4 font-mono text-amber-600 dark:text-amber-400 font-semibold">{inv.dueDate}</td>
-                    <td className={`py-3 px-4 font-mono font-bold text-sm ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-                      ₹{inv.totalAmount.toLocaleString()}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                          inv.status === 'paid'
-                            ? 'bg-[#00c853]/15 text-[#00c853] border border-[#00c853]/30'
-                            : 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30'
-                        }`}
-                      >
-                        {inv.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-2.5">
+            {expenses.map((exp) => (
+              <div
+                key={exp.id}
+                className={`p-3.5 rounded-2xl border flex items-center justify-between text-xs ${
+                  darkMode ? 'bg-[#0f1115] border-slate-800' : 'bg-slate-50 border-slate-200'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-500">
+                      {exp.category}
+                    </span>
+                    <span className="text-slate-400 font-mono text-[10px]">{exp.date}</span>
+                  </div>
+                  <div className={`font-bold mt-1 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                    {exp.description}
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="font-mono font-bold text-amber-500 text-sm">
+                    ₹{exp.amount.toLocaleString('en-IN')}
+                  </span>
+                  <span className="text-[10px] text-slate-400 block">By: {exp.loggedBy}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Create Invoice Modal */}
-      {showInvoiceModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className={`border rounded-2xl w-full max-w-md overflow-hidden shadow-2xl ${
-            darkMode ? 'bg-[#14171d] border-slate-800' : 'bg-white border-slate-200'
-          }`}>
-            <div className={`p-5 border-b flex items-center justify-between ${
-              darkMode ? 'bg-[#0f1115] border-slate-800' : 'bg-slate-50 border-slate-100'
-            }`}>
-              <h3 className={`text-sm font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-                <FileText className="w-4 h-4 text-[#00c853]" />
-                Dispatch Client Invoice
+      {/* TAB 5: PAYROLL */}
+      {activeTab === 'payroll' && (
+        <div className={`rounded-3xl border p-6 space-y-4 ${
+          darkMode ? 'bg-[#14171d] border-slate-800 shadow-xl' : 'bg-white border-slate-200/80 shadow-xs'
+        }`}>
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+            <div>
+              <h3 className={`text-base font-black ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                Employee Payroll &amp; Monthly Compensation
               </h3>
-              <button
-                onClick={() => setShowInvoiceModal(false)}
-                className={`w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer ${
-                  darkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+              <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                Strictly confidential staff compensation ledger (Accessible only to Super Admin &amp; Finance)
+              </p>
+            </div>
+            <span className="text-xs font-mono font-bold text-slate-400">Period: November 2026</span>
+          </div>
+
+          <div className="space-y-3">
+            {payroll.map((pay) => (
+              <div
+                key={pay.id}
+                className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
+                  darkMode ? 'bg-[#0f1115] border-slate-800' : 'bg-slate-50 border-slate-200'
                 }`}
+              >
+                <div>
+                  <h4 className={`font-bold text-sm ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                    {pay.employeeName}
+                  </h4>
+                  <div className="text-slate-400 text-xs">
+                    {pay.role} • {pay.department}
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-mono mt-1">
+                    {pay.paymentMethod} • Processed: {pay.processedDate || 'Scheduled'}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Net Payout</span>
+                    <span className={`text-base font-black font-mono ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                      ₹{pay.netSalary.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+
+                  {pay.status === 'paid' ? (
+                    <span className="px-3 py-1.5 rounded-xl bg-[#00c853]/10 text-[#00c853] font-bold text-xs border border-[#00c853]/20 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Disbursed
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => processPayrollItem(pay.id)}
+                      className="px-3 py-1.5 rounded-xl bg-blue-600 text-white font-bold text-xs"
+                    >
+                      Process Transfer
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* 5. MODALS (INVOICE, PAYMENT INSTALLMENT & EXPENSE) */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {showInvoiceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <form
+            onSubmit={handleCreateInvoice}
+            className={`w-full max-w-lg rounded-3xl p-6 border transition-all space-y-4 ${
+              darkMode ? 'bg-[#14171d] border-slate-800 text-white shadow-2xl' : 'bg-white border-slate-200 text-slate-900 shadow-2xl'
+            }`}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-base font-black">Generate Corporate Client Invoice</h3>
+              <button
+                type="button"
+                onClick={() => setShowInvoiceModal(false)}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateInvoice} className="p-6 space-y-4 text-xs">
-              <div>
-                <label className={`block font-semibold mb-1 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Target Client</label>
-                <select
-                  value={invClientId}
-                  onChange={(e) => setInvClientId(e.target.value)}
-                  className={`w-full px-3 py-2 rounded-xl border focus:outline-none focus:border-[#00c853] ${
-                    darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
-                  }`}
-                >
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.companyName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className={`block font-semibold mb-1 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Associated Project</label>
-                <select
-                  value={invProjectId}
-                  onChange={(e) => setInvProjectId(e.target.value)}
-                  className={`w-full px-3 py-2 rounded-xl border focus:outline-none focus:border-[#00c853] ${
-                    darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
-                  }`}
-                >
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={`block font-semibold mb-1 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Amount (₹ INR)</label>
+                  <label className="font-bold block mb-1">Client Account</label>
+                  <select
+                    value={invClientId}
+                    onChange={(e) => setInvClientId(e.target.value)}
+                    className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none ${
+                      darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+                    }`}
+                  >
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.id}>{c.companyName}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold block mb-1">Associated Project</label>
+                  <select
+                    value={invProjectId}
+                    onChange={(e) => setInvProjectId(e.target.value)}
+                    className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none ${
+                      darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+                    }`}
+                  >
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold block mb-1">Invoice Amount Subtotal (₹)</label>
                   <input
                     type="number"
+                    required
                     value={invAmount}
                     onChange={(e) => setInvAmount(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-xl border focus:outline-none focus:border-[#00c853] ${
-                      darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
+                    className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none focus:border-blue-500 ${
+                      darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
                     }`}
                   />
                 </div>
+
                 <div>
-                  <label className={`block font-semibold mb-1 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Due Date</label>
+                  <label className="font-bold block mb-1">Payment Due Date</label>
                   <input
                     type="date"
+                    required
                     value={invDueDate}
                     onChange={(e) => setInvDueDate(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-xl border focus:outline-none focus:border-[#00c853] ${
-                      darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
+                    className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none focus:border-blue-500 ${
+                      darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
                     }`}
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowInvoiceModal(false)}
-                  className={`px-4 py-2 rounded-xl font-medium cursor-pointer ${
-                    darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0f1115] border border-slate-200 dark:border-slate-800 text-[11px] text-slate-400">
+                18% GST will be applied automatically (₹{Math.round((parseFloat(invAmount) || 0) * 0.18).toLocaleString('en-IN')}).
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowInvoiceModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20"
+              >
+                Issue Invoice
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {showPaymentModal && selectedInvoiceForPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <form
+            onSubmit={handleRecordPayment}
+            className={`w-full max-w-md rounded-3xl p-6 border transition-all space-y-4 ${
+              darkMode ? 'bg-[#14171d] border-slate-800 text-white shadow-2xl' : 'bg-white border-slate-200 text-slate-900 shadow-2xl'
+            }`}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="text-base font-black">Record Client Payment</h3>
+                <p className="text-xs text-slate-400">Invoice: {selectedInvoiceForPayment.invoiceNumber}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPaymentModal(false)}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold block mb-1">Payment Amount (₹)</label>
+                <input
+                  type="number"
+                  required
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none focus:border-blue-500 font-mono ${
+                    darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="font-bold block mb-1">Payment Method</label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value as any)}
+                  className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none ${
+                    darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
                   }`}
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#00c853] hover:bg-[#00af48] text-white font-bold shadow-md shadow-[#00c853]/20 cursor-pointer"
-                >
-                  Dispatch Invoice
-                </button>
+                  <option value="UPI">UPI Direct</option>
+                  <option value="NEFT/IMPS">NEFT / RTGS / IMPS</option>
+                  <option value="Bank Transfer">Bank Transfer (SWIFT / Wire)</option>
+                  <option value="Stripe/Card">Stripe / Credit Card</option>
+                  <option value="Cheque">Corporate Cheque</option>
+                </select>
               </div>
-            </form>
-          </div>
+
+              <div>
+                <label className="font-bold block mb-1">Notes / Transaction Reference</label>
+                <input
+                  type="text"
+                  placeholder="e.g. HDFC-RTGS-982103819 or Advance Milestone 2"
+                  value={paymentNotes}
+                  onChange={(e) => setPaymentNotes(e.target.value)}
+                  className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none focus:border-blue-500 ${
+                    darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+                  }`}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowPaymentModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-xl bg-[#00c853] hover:bg-[#00b047] text-white text-xs font-bold shadow-md shadow-[#00c853]/20"
+              >
+                Confirm Payment Receipt
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {showExpenseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <form
+            onSubmit={handleAddExpense}
+            className={`w-full max-w-md rounded-3xl p-6 border transition-all space-y-4 ${
+              darkMode ? 'bg-[#14171d] border-slate-800 text-white shadow-2xl' : 'bg-white border-slate-200 text-slate-900 shadow-2xl'
+            }`}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-base font-black">Log Business Expense</h3>
+              <button
+                type="button"
+                onClick={() => setShowExpenseModal(false)}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold block mb-1">Expense Category</label>
+                <select
+                  value={expCategory}
+                  onChange={(e) => setExpCategory(e.target.value as any)}
+                  className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none ${
+                    darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+                  }`}
+                >
+                  <option value="Software & Tools">Software & Tools</option>
+                  <option value="Infrastructure & Hosting">Infrastructure & Hosting</option>
+                  <option value="Marketing">Marketing & Ads</option>
+                  <option value="Office & Admin">Office & Admin</option>
+                  <option value="Consulting">Consulting</option>
+                  <option value="Hardware">Hardware</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold block mb-1">Description</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. AWS Cloud Cluster Renewal for Nov"
+                  value={expDesc}
+                  onChange={(e) => setExpDesc(e.target.value)}
+                  className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none focus:border-blue-500 ${
+                    darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="font-bold block mb-1">Amount (INR ₹)</label>
+                <input
+                  type="number"
+                  required
+                  value={expAmount}
+                  onChange={(e) => setExpAmount(e.target.value)}
+                  className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none focus:border-blue-500 font-mono ${
+                    darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+                  }`}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowExpenseModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20"
+              >
+                Save Expense
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

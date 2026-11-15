@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { ClientLead, LeadStatus, ClientQuote, QuoteItem } from '../../types';
+import { ClientLead, LeadStatus, ClientQuote, QuoteItem, ServiceCategoryKey } from '../../types';
 import {
   Building2,
   Plus,
   Search,
-  DollarSign,
+  IndianRupee,
   TrendingUp,
   FileText,
   Mail,
@@ -16,15 +16,36 @@ import {
   CheckCircle2,
   X,
   FileCheck2,
-  Calendar
+  Calendar,
+  Sparkles,
+  Award,
+  Layers,
+  ChevronRight,
+  Check
 } from 'lucide-react';
 
 export const CrmModule: React.FC = () => {
-  const { clients, updateClientStatus, addClient, addQuote, currentRole, currentUser, darkMode } = useApp();
+  const {
+    clients,
+    updateClientStatus,
+    addClient,
+    convertLeadToClient,
+    quotes,
+    addQuote,
+    convertProposalToProject,
+    services,
+    currentRole,
+    currentUser,
+    darkMode,
+    showToast,
+    setActiveModule
+  } = useApp();
+
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedClient, setSelectedClient] = useState<ClientLead | null>(null);
+  const [selectedClient, setSelectedClient] = useState<ClientLead | null>(clients[0] || null);
   const [showAddClientModal, setShowAddClientModal] = useState(false);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [selectedServiceForQuote, setSelectedServiceForQuote] = useState<string>('srv-01');
 
   // New Client Form
   const [newCompany, setNewCompany] = useState('');
@@ -33,23 +54,30 @@ export const CrmModule: React.FC = () => {
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newWebsite, setNewWebsite] = useState('');
-  const [newContractVal, setNewContractVal] = useState('150000');
+  const [newContractVal, setNewContractVal] = useState('1850000');
+  const [newSource, setNewSource] = useState<ClientLead['leadSource']>('Website Inquiry');
+  const [newRequirement, setNewRequirement] = useState('');
   const [newNotes, setNewNotes] = useState('');
 
   // Quote Generator Form
   const [quoteItems, setQuoteItems] = useState<QuoteItem[]>([
-    { id: '1', description: 'Core Application Architecture & Database Schema Design', quantity: 1, rate: 45000, amount: 45000 },
-    { id: '2', description: 'Interactive Frontend UI Development (React + Tailwind)', quantity: 80, rate: 800, amount: 64000 },
-    { id: '3', description: '100-Point QA Security & Performance Compliance Sweep', quantity: 1, rate: 25000, amount: 25000 }
+    { id: '1', description: 'Custom Web Application Architecture & PostgreSQL Database Schema', quantity: 1, rate: 850000, amount: 850000 },
+    { id: '2', description: 'Enterprise UI/UX Design System & Interactive Figma Prototype', quantity: 1, rate: 450000, amount: 450000 },
+    { id: '3', description: 'Razorpay Multi-currency Gateway & Webhook Infrastructure', quantity: 1, rate: 350000, amount: 350000 },
+    { id: '4', description: 'Comprehensive 100-Point Security Penetration & QC Audit', quantity: 1, rate: 200000, amount: 200000 }
   ]);
-  const [quoteTerms, setQuoteTerms] = useState('50% upfront retainer, 50% upon milestone staging acceptance.');
+  const [quoteTerms, setQuoteTerms] = useState('Payment Schedule: 40% upfront advance, 40% on Staging Verification, 20% on Final Quality Acceptance. Includes DigiWorku 90-day comprehensive SLA warranty.');
   const [quoteTaxRate, setQuoteTaxRate] = useState(18); // 18% GST
 
-  const stages: { id: LeadStatus; label: string }[] = [
-    { id: 'lead', label: 'Inbound Lead' },
-    { id: 'contacted', label: 'Discovery & Contacted' },
-    { id: 'proposal_sent', label: 'Proposal / Quote Sent' },
-    { id: 'active_client', label: 'Active Enterprise Client' }
+  // 7-Stage Sales Pipeline
+  const pipelineStages: { id: LeadStatus; label: string; dotColor: string }[] = [
+    { id: 'new_lead', label: 'New Lead', dotColor: 'bg-blue-500' },
+    { id: 'contacted', label: 'Contacted', dotColor: 'bg-cyan-500' },
+    { id: 'qualified', label: 'Qualified', dotColor: 'bg-indigo-500' },
+    { id: 'requirement_received', label: 'Requirements', dotColor: 'bg-purple-500' },
+    { id: 'proposal_sent', label: 'Proposal Sent', dotColor: 'bg-amber-500' },
+    { id: 'negotiation', label: 'Negotiation', dotColor: 'bg-orange-500' },
+    { id: 'won', label: 'Won / Client', dotColor: 'bg-[#00c853]' }
   ];
 
   const filteredClients = clients.filter((c) =>
@@ -64,6 +92,29 @@ export const CrmModule: React.FC = () => {
     return sub + sub * (quoteTaxRate / 100);
   };
 
+  const handleSelectServiceTemplate = (serviceId: string) => {
+    setSelectedServiceForQuote(serviceId);
+    const srv = services.find((s) => s.id === serviceId);
+    if (!srv) return;
+
+    setQuoteItems([
+      {
+        id: `qi-${Date.now()}-1`,
+        description: `${srv.name} — Architecture, Core Engineering & Implementation`,
+        quantity: 1,
+        rate: srv.clientQuotation,
+        amount: srv.clientQuotation
+      },
+      {
+        id: `qi-${Date.now()}-2`,
+        description: `DigiWorku Quality Control Sweep, Performance Tuning & SLA Verification`,
+        quantity: 1,
+        rate: Math.round(srv.clientQuotation * 0.15),
+        amount: Math.round(srv.clientQuotation * 0.15)
+      }
+    ]);
+  };
+
   const handleCreateClient = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCompany.trim() || !newEmail.trim()) return;
@@ -71,21 +122,24 @@ export const CrmModule: React.FC = () => {
     addClient({
       companyName: newCompany,
       industry: newIndustry || 'Technology Enterprise',
-      contactPerson: newContact,
+      contactPerson: newContact || 'Procurement Officer',
       email: newEmail,
-      phone: newPhone || '+91 98765 43210',
-      website: newWebsite || 'https://digiworku.com',
-      status: 'lead',
-      contractValue: parseFloat(newContractVal) || 150000,
-      healthScore: 85,
+      phone: newPhone || '+91 98101 22340',
+      website: newWebsite || 'https://digiworku.in',
+      status: 'new_lead',
+      contractValue: parseFloat(newContractVal) || 1850000,
+      healthScore: 90,
+      leadSource: newSource,
+      requirementSummary: newRequirement,
       notes: newNotes,
       lastContactDate: new Date().toISOString().split('T')[0]
     });
 
     setShowAddClientModal(false);
     setNewCompany('');
-    setNewContact('');
     setNewEmail('');
+    setNewContact('');
+    setNewRequirement('');
   };
 
   const handleGenerateQuote = (e: React.FormEvent) => {
@@ -96,506 +150,580 @@ export const CrmModule: React.FC = () => {
     const tax = sub * (quoteTaxRate / 100);
     const total = sub + tax;
 
-    const quote: ClientQuote = {
-      id: `quote-${Date.now()}`,
-      quoteNumber: `QTE-2026-${Math.floor(100 + Math.random() * 900)}`,
+    addQuote({
+      id: `qt-${Date.now()}`,
+      quoteNumber: `DW-QT-2026-${Math.floor(100 + Math.random() * 900)}`,
       clientId: selectedClient.id,
       clientName: selectedClient.companyName,
       clientEmail: selectedClient.email,
       issueDate: new Date().toISOString().split('T')[0],
-      validUntil: '2026-12-15',
+      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       items: quoteItems,
       subtotal: sub,
       taxRate: quoteTaxRate,
       taxAmount: tax,
-      total: total,
+      total,
       terms: quoteTerms,
       status: 'sent'
-    };
+    });
 
-    addQuote(quote);
     updateClientStatus(selectedClient.id, 'proposal_sent');
     setShowQuoteModal(false);
   };
 
+  const handleConvertWonLead = (leadId: string) => {
+    const updated = convertLeadToClient(leadId);
+    setSelectedClient(updated);
+  };
+
+  const handleConvertQuoteToProject = (quoteId: string) => {
+    const newProj = convertProposalToProject(quoteId);
+    setActiveModule('projects');
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto select-none">
-      {/* Top Controls */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* 1. TOP HEADER & METRIC SUMMARY */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div>
+          <h1 className={`text-xl md:text-2xl font-black font-display tracking-tight ${
+            darkMode ? 'text-white' : 'text-slate-900'
+          }`}>
+            CRM &amp; Client Pipeline Management
+          </h1>
+          <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+            Lead qualification, 13-service proposal drafting, client conversion and contract relationships
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setShowAddClientModal(true)}
+            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-blue-500/20 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Register Lead</span>
+          </button>
+
+          {selectedClient && (
+            <button
+              onClick={() => setShowQuoteModal(true)}
+              className="px-3.5 py-2 rounded-xl bg-[#00c853] hover:bg-[#00b047] text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-[#00c853]/20 cursor-pointer"
+            >
+              <FileText className="w-4 h-4" />
+              <span>Draft Proposal / Quote (₹)</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* 2. 7-STAGE INTERACTIVE SALES FUNNEL BAR */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      <div className={`p-4 rounded-3xl border transition-all duration-200 ${
+        darkMode ? 'bg-[#14171d] border-slate-800 shadow-xl' : 'bg-white border-slate-200/80 shadow-xs'
+      }`}>
+        <div className="flex items-center justify-between text-xs font-bold text-slate-400 mb-2">
+          <span>DigiWorku Client Acquisition Pipeline</span>
+          <span className="font-mono text-blue-500">{clients.length} Total Accounts in Pipeline</span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+          {pipelineStages.map((stage) => {
+            const count = clients.filter((c) => {
+              if (stage.id === 'won') return c.status === 'won' || c.status === 'active_client';
+              if (stage.id === 'new_lead') return c.status === 'new_lead' || c.status === 'lead';
+              return c.status === stage.id;
+            }).length;
+
+            return (
+              <div
+                key={stage.id}
+                className={`p-3 rounded-2xl border text-center space-y-1 transition-all ${
+                  darkMode ? 'bg-[#0f1115] border-slate-800' : 'bg-slate-50 border-slate-200'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-1.5 text-[11px] font-bold">
+                  <span className={`w-2 h-2 rounded-full ${stage.dotColor}`} />
+                  <span className={`truncate ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>{stage.label}</span>
+                </div>
+                <div className={`text-base font-black font-mono ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                  {count}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* 3. MAIN CRM SPLIT: CLIENT DIRECTORY & CLIENT DOSSIER */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left: Accounts Directory */}
+        <div className={`rounded-3xl border p-5 space-y-4 ${
+          darkMode ? 'bg-[#14171d] border-slate-800 shadow-xl' : 'bg-white border-slate-200/80 shadow-xs'
+        }`}>
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Search companies, leads, or contacts..."
+              placeholder="Search companies, contacts..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className={`pl-9 pr-4 py-2 rounded-xl border text-xs focus:outline-none focus:border-[#00c853] w-64 md:w-80 transition-colors ${
-                darkMode 
-                  ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500' 
-                  : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400 shadow-sm'
+              className={`w-full pl-10 pr-4 py-2 rounded-xl border text-xs focus:outline-none focus:border-blue-500 ${
+                darkMode ? 'bg-[#0f1115] border-slate-800 text-white placeholder-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'
               }`}
             />
           </div>
+
+          <div className="space-y-2.5 max-h-[600px] overflow-y-auto">
+            {filteredClients.map((client) => {
+              const isSelected = selectedClient?.id === client.id;
+              const isWon = client.status === 'won' || client.status === 'active_client';
+
+              return (
+                <div
+                  key={client.id}
+                  onClick={() => setSelectedClient(client)}
+                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer space-y-1.5 ${
+                    isSelected
+                      ? 'bg-blue-600/10 border-blue-500 shadow-sm'
+                      : darkMode
+                        ? 'bg-[#0f1115] border-slate-800 hover:border-slate-700'
+                        : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <h4 className={`text-xs font-bold truncate ${
+                      isSelected ? 'text-blue-500 font-black' : darkMode ? 'text-white' : 'text-slate-900'
+                    }`}>
+                      {client.companyName}
+                    </h4>
+                    <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                      isWon
+                        ? 'bg-[#00c853]/15 text-[#00c853]'
+                        : 'bg-amber-500/15 text-amber-500'
+                    }`}>
+                      {client.status.replace(/_/g, ' ')}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <span>{client.contactPerson}</span>
+                    <span className="font-mono text-[#00c853] font-bold">
+                      ₹{(client.contractValue / 100000).toFixed(1)}L
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        <button
-          onClick={() => setShowAddClientModal(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#00c853] hover:bg-[#00af48] text-white text-xs font-bold transition-all shadow-md shadow-[#00c853]/20 cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add Inbound Lead</span>
-        </button>
-      </div>
-
-      {/* CRM Pipeline Kanban Board */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
-        {stages.map((stage) => {
-          const stageClients = filteredClients.filter((c) => c.status === stage.id);
-
-          return (
-            <div
-              key={stage.id}
-              className={`rounded-2xl border p-3.5 space-y-3 min-h-[520px] flex flex-col justify-start transition-colors duration-200 ${
-                darkMode
-                  ? 'border-slate-800 bg-[#14171d]/90'
-                  : 'border-slate-200/90 bg-slate-100/60 shadow-sm'
-              }`}
-            >
-              <div className="flex items-center justify-between px-1">
-                <span className={`font-bold text-xs uppercase tracking-wider ${
-                  darkMode ? 'text-white' : 'text-slate-800'
-                }`}>
-                  {stage.label}
+        {/* Right: Client Dossier & Proposals Hub */}
+        {selectedClient ? (
+          <div className={`lg:col-span-2 rounded-3xl border p-6 space-y-6 ${
+            darkMode ? 'bg-[#14171d] border-slate-800 shadow-xl' : 'bg-white border-slate-200/80 shadow-xs'
+          }`}>
+            {/* Header info */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-500 uppercase tracking-wider">
+                  {selectedClient.industry}
                 </span>
-                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
-                  darkMode ? 'bg-slate-800 text-slate-300' : 'bg-white text-slate-700 border border-slate-200'
-                }`}>
-                  {stageClients.length}
-                </span>
+                <h2 className={`text-xl font-black mt-1 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                  {selectedClient.companyName}
+                </h2>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 mt-1">
+                  <span className="flex items-center gap-1"><Mail className="w-3.5 h-3.5 text-blue-500" /> {selectedClient.email}</span>
+                  <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5 text-[#00c853]" /> {selectedClient.phone}</span>
+                  <span className="flex items-center gap-1"><Globe className="w-3.5 h-3.5 text-purple-500" /> {selectedClient.website}</span>
+                </div>
               </div>
 
-              <div className="space-y-3 flex-1">
-                {stageClients.map((client) => (
+              {/* Conversion Button */}
+              {selectedClient.status !== 'won' && selectedClient.status !== 'active_client' ? (
+                <button
+                  onClick={() => handleConvertWonLead(selectedClient.id)}
+                  className="px-4 py-2 rounded-xl bg-[#00c853] hover:bg-[#00b047] text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-[#00c853]/20 cursor-pointer shrink-0"
+                >
+                  <Award className="w-4 h-4" />
+                  <span>Convert Lead to Active Client</span>
+                </button>
+              ) : (
+                <span className="px-3 py-1 rounded-xl bg-[#00c853]/10 text-[#00c853] border border-[#00c853]/30 text-xs font-black flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4" /> Verified Corporate Client
+                </span>
+              )}
+            </div>
+
+            {/* Requirement Summary & Financial Scope */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#0f1115] border border-slate-200 dark:border-slate-800">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Contract Potential</span>
+                <div className="text-xl font-black font-mono mt-1 text-[#00c853]">
+                  ₹{(selectedClient.contractValue / 100000).toFixed(2)}L
+                </div>
+                <span className="text-[10px] text-slate-400 font-semibold">INR ₹ Valuation</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#0f1115] border border-slate-200 dark:border-slate-800">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Acquisition Source</span>
+                <div className={`text-sm font-bold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                  {selectedClient.leadSource || 'Website Inbound'}
+                </div>
+                <span className="text-[10px] text-slate-400 font-semibold">Attribution Channel</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#0f1115] border border-slate-200 dark:border-slate-800">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Account Health</span>
+                <div className="text-xl font-black font-mono mt-1 text-blue-500">
+                  {selectedClient.healthScore}/100
+                </div>
+                <span className="text-[10px] text-slate-400 font-semibold">Engagement Velocity</span>
+              </div>
+            </div>
+
+            {/* Client Proposals & Quotes Issued */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between pb-1">
+                <h3 className={`text-sm font-black ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                  Proposals &amp; Quotations Issued
+                </h3>
+                <span className="text-xs text-slate-400 font-bold">18% GST Applicable</span>
+              </div>
+
+              {quotes.filter((q) => q.clientId === selectedClient.id).length === 0 ? (
+                <div className={`p-6 text-center text-xs border rounded-2xl ${
+                  darkMode ? 'border-slate-800 text-slate-500' : 'border-slate-200 text-slate-400'
+                }`}>
+                  No quotations issued yet. Click "Draft Proposal / Quote" to create an itemized proposal from our 13 service catalogue.
+                </div>
+              ) : (
+                quotes.filter((q) => q.clientId === selectedClient.id).map((quote) => (
                   <div
-                    key={client.id}
-                    onClick={() => setSelectedClient(client)}
-                    className={`border rounded-xl p-4 cursor-pointer transition-all group space-y-3 ${
-                      darkMode
-                        ? 'bg-[#0f1115] hover:bg-[#151922] border-slate-800 hover:border-slate-700 shadow-md'
-                        : 'bg-white hover:bg-slate-50/80 border-slate-200 hover:border-slate-300 shadow-sm'
+                    key={quote.id}
+                    className={`p-4 rounded-2xl border space-y-3 ${
+                      darkMode ? 'bg-[#0f1115] border-slate-800' : 'bg-slate-50 border-slate-200'
                     }`}
                   >
-                    <div>
-                      <h4 className={`text-xs font-bold transition-colors ${
-                        darkMode ? 'text-white group-hover:text-[#00c853]' : 'text-slate-900 group-hover:text-[#00c853]'
-                      }`}>
-                        {client.companyName}
-                      </h4>
-                      <p className={`text-[11px] mt-0.5 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                        {client.industry}
-                      </p>
-                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-mono text-xs font-black text-blue-500">{quote.quoteNumber}</span>
+                        <div className={`text-xs font-bold mt-0.5 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                          Total: ₹{quote.total.toLocaleString('en-IN')} (incl. GST)
+                        </div>
+                      </div>
 
-                    <div className={`flex items-center justify-between text-xs pt-1 border-t ${
-                      darkMode ? 'border-slate-800 text-slate-400' : 'border-slate-100 text-slate-500'
-                    }`}>
-                      <span className="font-medium">Contract Value:</span>
-                      <span className="font-mono font-bold text-[#00c853]">
-                        ₹{client.contractValue.toLocaleString()}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-1">
-                      <span className={`text-[11px] truncate max-w-[120px] font-medium ${
-                        darkMode ? 'text-slate-400' : 'text-slate-600'
-                      }`}>
-                        {client.contactPerson}
-                      </span>
-
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#00c853]/10 text-[#00c853] border border-[#00c853]/20 font-bold">
-                          {client.healthScore}% Health
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">
+                          {quote.status}
                         </span>
 
-                        {stage.id !== 'active_client' && (
+                        {quote.status !== 'accepted' && (
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const next: LeadStatus =
-                                stage.id === 'lead'
-                                  ? 'contacted'
-                                  : stage.id === 'contacted'
-                                  ? 'proposal_sent'
-                                  : 'active_client';
-                              updateClientStatus(client.id, next);
-                            }}
-                            className={`p-1 rounded transition-colors cursor-pointer ${
-                              darkMode 
-                                ? 'bg-slate-800 hover:bg-[#00c853] hover:text-white text-slate-400' 
-                                : 'bg-slate-100 hover:bg-[#00c853] hover:text-white text-slate-600'
-                            }`}
-                            title="Advance stage"
+                            onClick={() => handleConvertQuoteToProject(quote.id)}
+                            className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1 transition-all cursor-pointer shadow-xs"
                           >
-                            <ArrowRight className="w-3.5 h-3.5" />
+                            <span>Accept &amp; Launch Project</span>
+                            <ArrowRight className="w-3 h-3" />
                           </button>
                         )}
                       </div>
                     </div>
+
+                    <div className="space-y-1 text-xs border-t pt-2 border-slate-200 dark:border-slate-800">
+                      {quote.items.map((it) => (
+                        <div key={it.id} className="flex items-center justify-between text-slate-400 text-[11px]">
+                          <span>• {it.description}</span>
+                          <span className="font-mono text-slate-300">₹{it.amount.toLocaleString('en-IN')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Activity History */}
+            <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-400 block">
+                Contact &amp; Negotiation Timeline
+              </span>
+              <div className="space-y-2">
+                {selectedClient.activityHistory.map((act, i) => (
+                  <div key={i} className="text-xs p-3 rounded-xl bg-slate-50 dark:bg-[#0f1115] border border-slate-200 dark:border-slate-800 space-y-0.5">
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                      <span>{act.date} • {act.author}</span>
+                    </div>
+                    <p className={darkMode ? 'text-slate-300' : 'text-slate-700'}>{act.note}</p>
                   </div>
                 ))}
-
-                {stageClients.length === 0 && (
-                  <div className={`py-12 text-center text-xs border border-dashed rounded-xl ${
-                    darkMode ? 'text-slate-600 border-slate-800/80' : 'text-slate-400 border-slate-200'
-                  }`}>
-                    No clients in {stage.label}
-                  </div>
-                )}
               </div>
             </div>
-          );
-        })}
+          </div>
+        ) : (
+          <div className="lg:col-span-2 p-12 text-center text-xs text-slate-400">
+            Select a client account to inspect details
+          </div>
+        )}
       </div>
 
-      {/* Client Dossier & History Modal */}
-      {selectedClient && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-          <div className={`border rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl ${
-            darkMode ? 'bg-[#14171d] border-slate-800' : 'bg-white border-slate-200'
-          }`}>
-            <div className={`p-5 border-b flex items-center justify-between ${
-              darkMode ? 'bg-[#0f1115] border-slate-800' : 'bg-slate-50 border-slate-100'
-            }`}>
-              <div>
-                <h3 className={`text-base font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-                  <Building2 className="w-5 h-5 text-[#00c853]" />
-                  {selectedClient.companyName}
-                </h3>
-                <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>{selectedClient.industry}</p>
-              </div>
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* 4. MODALS (REGISTER LEAD & DRAFT PROPOSAL) */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {showAddClientModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <form
+            onSubmit={handleCreateClient}
+            className={`w-full max-w-lg rounded-3xl p-6 border transition-all space-y-4 ${
+              darkMode ? 'bg-[#14171d] border-slate-800 text-white shadow-2xl' : 'bg-white border-slate-200 text-slate-900 shadow-2xl'
+            }`}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-base font-black">Register Inbound Client Lead</h3>
               <button
-                onClick={() => setSelectedClient(null)}
-                className={`w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer ${
-                  darkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
-                }`}
+                type="button"
+                onClick={() => setShowAddClientModal(false)}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto text-xs">
-              {/* Primary Contact Bar */}
-              <div className={`grid grid-cols-2 gap-3 p-3.5 rounded-xl border ${
-                darkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
-              }`}>
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <span className={`block text-[10px] uppercase font-semibold ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Primary Contact</span>
-                  <span className={`font-semibold mt-0.5 block ${darkMode ? 'text-white' : 'text-slate-900'}`}>{selectedClient.contactPerson}</span>
-                  <span className={`block mt-0.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>{selectedClient.email}</span>
-                </div>
-                <div>
-                  <span className={`block text-[10px] uppercase font-semibold ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Contract Valuation</span>
-                  <span className="font-mono text-[#00c853] font-bold text-sm mt-0.5 block">
-                    ₹{selectedClient.contractValue.toLocaleString()}
-                  </span>
-                  <span className={`block mt-0.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>{selectedClient.phone}</span>
-                </div>
-              </div>
-
-              {/* Internal Notes */}
-              <div>
-                <span className={`font-semibold block mb-1 ${darkMode ? 'text-slate-400' : 'text-slate-700'}`}>Executive Notes &amp; SLA Expectations</span>
-                <p className={`p-3 rounded-xl border leading-relaxed italic ${
-                  darkMode ? 'bg-slate-900/40 border-slate-800/80 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
-                }`}>
-                  "{selectedClient.notes || 'No confidential notes recorded yet.'}"
-                </p>
-              </div>
-
-              {/* CRM Interaction Log */}
-              <div>
-                <span className={`font-semibold block mb-2 ${darkMode ? 'text-slate-400' : 'text-slate-700'}`}>Communications &amp; Activity Log</span>
-                <div className="space-y-2">
-                  {selectedClient.activityHistory.map((act, idx) => (
-                    <div key={idx} className={`p-3 rounded-xl border space-y-1 ${
-                      darkMode ? 'bg-slate-900/80 border-slate-800/80' : 'bg-slate-50 border-slate-200'
-                    }`}>
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className={`font-mono ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>{act.date}</span>
-                        <span className="text-[#00c853] font-bold">{act.author}</span>
-                      </div>
-                      <p className={darkMode ? 'text-slate-200' : 'text-slate-800'}>{act.note}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className={`pt-2 flex items-center justify-between border-t ${
-                darkMode ? 'border-slate-800' : 'border-slate-100'
-              }`}>
-                <button
-                  onClick={() => setShowQuoteModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#00c853]/15 hover:bg-[#00c853]/25 text-[#00c853] border border-[#00c853]/30 font-bold text-xs transition-all cursor-pointer"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>Generate Formal Estimate / Quote</span>
-                </button>
-
-                <button
-                  onClick={() => setSelectedClient(null)}
-                  className={`px-4 py-2 rounded-xl font-bold transition-colors cursor-pointer ${
-                    darkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-200' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-                  }`}
-                >
-                  Close Dossier
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Quote Generator Modal */}
-      {showQuoteModal && selectedClient && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-          <div className={`border rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl ${
-            darkMode ? 'bg-[#14171d] border-slate-800' : 'bg-white border-slate-200'
-          }`}>
-            <div className={`p-5 border-b flex items-center justify-between ${
-              darkMode ? 'bg-[#0f1115] border-slate-800' : 'bg-slate-50 border-slate-100'
-            }`}>
-              <div>
-                <h3 className={`text-sm font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-                  <FileCheck2 className="w-4 h-4 text-[#00c853]" />
-                  Issue Estimate / Quote for {selectedClient.companyName}
-                </h3>
-                <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Formal itemized deliverable pricing</p>
-              </div>
-              <button
-                onClick={() => setShowQuoteModal(false)}
-                className={`w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer ${
-                  darkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleGenerateQuote} className="p-6 space-y-4 text-xs">
-              <div className="space-y-2">
-                <span className={`font-semibold block ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Deliverable Line Items</span>
-                {quoteItems.map((item) => (
-                  <div key={item.id} className={`grid grid-cols-12 gap-2 p-2.5 rounded-xl border items-center ${
-                    darkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
-                  }`}>
-                    <div className="col-span-7">
-                      <span className={darkMode ? 'text-slate-200' : 'text-slate-800'}>{item.description}</span>
-                    </div>
-                    <div className={`col-span-2 text-center font-mono ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                      Qty: {item.quantity}
-                    </div>
-                    <div className={`col-span-3 text-right font-mono font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-                      ₹{item.amount.toLocaleString()}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 pt-2">
-                <div>
-                  <label className={`block mb-1 font-semibold ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>Payment Terms</label>
-                  <input
-                    type="text"
-                    value={quoteTerms}
-                    onChange={(e) => setQuoteTerms(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:border-[#00c853] ${
-                      darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
-                    }`}
-                  />
-                </div>
-                <div className={`p-3.5 rounded-xl border space-y-1 text-right ${
-                  darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50 border-slate-200'
-                }`}>
-                  <div className={`flex justify-between ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                    <span>Subtotal:</span>
-                    <span className={`font-mono font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>₹{calculateSubtotal().toLocaleString()}</span>
-                  </div>
-                  <div className={`flex justify-between ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                    <span>GST (18%):</span>
-                    <span className={`font-mono ${darkMode ? 'text-white' : 'text-slate-900'}`}>₹{(calculateSubtotal() * 0.18).toLocaleString()}</span>
-                  </div>
-                  <div className={`flex justify-between text-[#00c853] font-bold text-sm pt-1 border-t ${
-                    darkMode ? 'border-slate-800' : 'border-slate-200'
-                  }`}>
-                    <span>Total Estimate:</span>
-                    <span className="font-mono">₹{calculateTotal().toLocaleString()}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className={`flex items-center justify-end gap-2 pt-3 border-t ${darkMode ? 'border-slate-800' : 'border-slate-100'}`}>
-                <button
-                  type="button"
-                  onClick={() => setShowQuoteModal(false)}
-                  className={`px-4 py-2 rounded-xl font-medium transition-colors cursor-pointer ${
-                    darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#00c853] hover:bg-[#00af48] text-white font-bold transition-all shadow-md shadow-[#00c853]/20 cursor-pointer"
-                >
-                  Dispatch Quote &amp; Move to Proposal Sent
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Add Client Lead Modal */}
-      {showAddClientModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className={`border rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl ${
-            darkMode ? 'bg-[#14171d] border-slate-800' : 'bg-white border-slate-200'
-          }`}>
-            <div className={`p-5 border-b flex items-center justify-between ${
-              darkMode ? 'bg-[#0f1115] border-slate-800' : 'bg-slate-50 border-slate-100'
-            }`}>
-              <h3 className={`text-sm font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-                <Building2 className="w-4 h-4 text-[#00c853]" />
-                Add Inbound Client Lead
-              </h3>
-              <button
-                onClick={() => setShowAddClientModal(false)}
-                className={`w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer ${
-                  darkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateClient} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={`block text-xs font-semibold mb-1 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Company Name</label>
+                  <label className="font-bold block mb-1">Company / Brand Name</label>
                   <input
                     type="text"
                     required
+                    placeholder="e.g. Apex Health Systems"
                     value={newCompany}
                     onChange={(e) => setNewCompany(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:border-[#00c853] ${
-                      darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
+                    className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none focus:border-blue-500 ${
+                      darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
                     }`}
-                    placeholder="e.g. CyberDefense Ltd."
                   />
                 </div>
                 <div>
-                  <label className={`block text-xs font-semibold mb-1 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Industry</label>
+                  <label className="font-bold block mb-1">Industry Sector</label>
                   <input
                     type="text"
+                    placeholder="e.g. Healthcare Tech"
                     value={newIndustry}
                     onChange={(e) => setNewIndustry(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:border-[#00c853] ${
-                      darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
+                    className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none focus:border-blue-500 ${
+                      darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
                     }`}
-                    placeholder="e.g. SaaS / Fintech"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={`block text-xs font-semibold mb-1 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Contact Person</label>
+                  <label className="font-bold block mb-1">Primary Contact Person</label>
                   <input
                     type="text"
                     required
+                    placeholder="e.g. Dr. Samir Gupta"
                     value={newContact}
                     onChange={(e) => setNewContact(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:border-[#00c853] ${
-                      darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
+                    className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none focus:border-blue-500 ${
+                      darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
                     }`}
-                    placeholder="e.g. Johnathan Smith"
                   />
                 </div>
                 <div>
-                  <label className={`block text-xs font-semibold mb-1 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Email Address</label>
+                  <label className="font-bold block mb-1">Official Email Address</label>
                   <input
                     type="email"
                     required
+                    placeholder="samir@apexhealth.in"
                     value={newEmail}
                     onChange={(e) => setNewEmail(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:border-[#00c853] ${
-                      darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
+                    className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none focus:border-blue-500 ${
+                      darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
                     }`}
-                    placeholder="john@company.com"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={`block text-xs font-semibold mb-1 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Contract Valuation (₹)</label>
+                  <label className="font-bold block mb-1">Estimated Budget Potential (₹)</label>
                   <input
                     type="number"
                     value={newContractVal}
                     onChange={(e) => setNewContractVal(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:border-[#00c853] ${
-                      darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
+                    className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none focus:border-blue-500 ${
+                      darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
                     }`}
                   />
                 </div>
                 <div>
-                  <label className={`block text-xs font-semibold mb-1 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Website URL</label>
-                  <input
-                    type="text"
-                    value={newWebsite}
-                    onChange={(e) => setNewWebsite(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:border-[#00c853] ${
-                      darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
+                  <label className="font-bold block mb-1">Lead Source</label>
+                  <select
+                    value={newSource}
+                    onChange={(e) => setNewSource(e.target.value as any)}
+                    className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none ${
+                      darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
                     }`}
-                    placeholder="https://..."
-                  />
+                  >
+                    <option value="Website Inquiry">Website Inquiry</option>
+                    <option value="Referral">Client Referral</option>
+                    <option value="LinkedIn">LinkedIn B2B</option>
+                    <option value="WhatsApp">WhatsApp Direct</option>
+                    <option value="Outreach">Enterprise Outreach</option>
+                  </select>
                 </div>
               </div>
 
               <div>
-                <label className={`block text-xs font-semibold mb-1 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Requirements &amp; Context</label>
+                <label className="font-bold block mb-1">Requirement Brief</label>
                 <textarea
-                  rows={3}
-                  value={newNotes}
-                  onChange={(e) => setNewNotes(e.target.value)}
-                  className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:border-[#00c853] ${
-                    darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
+                  rows={2}
+                  placeholder="Summary of client's requirements, features, and desired delivery deadline..."
+                  value={newRequirement}
+                  onChange={(e) => setNewRequirement(e.target.value)}
+                  className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none focus:border-blue-500 ${
+                    darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
                   }`}
-                  placeholder="Scope of work requested, target delivery timeframe, etc."
                 />
               </div>
+            </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddClientModal(false)}
-                  className={`px-4 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
-                    darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#00c853] hover:bg-[#00af48] text-white text-xs font-bold transition-all shadow-md shadow-[#00c853]/20 cursor-pointer"
-                >
-                  Add Lead to Pipeline
-                </button>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAddClientModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20"
+              >
+                Register Account
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {showQuoteModal && selectedClient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <form
+            onSubmit={handleGenerateQuote}
+            className={`w-full max-w-2xl rounded-3xl p-6 border transition-all max-h-[90vh] overflow-y-auto space-y-4 ${
+              darkMode ? 'bg-[#14171d] border-slate-800 text-white shadow-2xl' : 'bg-white border-slate-200 text-slate-900 shadow-2xl'
+            }`}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="text-base font-black">Draft Client Proposal &amp; Quotation</h3>
+                <p className="text-xs text-slate-400">Recipient: {selectedClient.companyName} ({selectedClient.contactPerson})</p>
               </div>
-            </form>
-          </div>
+              <button
+                type="button"
+                onClick={() => setShowQuoteModal(false)}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick Service Catalogue Loader */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold block text-blue-500">
+                Load Template from 13 DigiWorku Services:
+              </label>
+              <select
+                value={selectedServiceForQuote}
+                onChange={(e) => handleSelectServiceTemplate(e.target.value)}
+                className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none ${
+                  darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+                }`}
+              >
+                {services.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name} (Base: ₹{s.clientQuotation.toLocaleString('en-IN')})</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Line items list */}
+            <div className="space-y-2 pt-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">Itemized Deliverables &amp; Milestones</span>
+              <div className="space-y-2">
+                {quoteItems.map((item, idx) => (
+                  <div key={item.id} className="grid grid-cols-12 gap-2 text-xs">
+                    <input
+                      type="text"
+                      className={`col-span-8 p-2 rounded-xl border text-xs ${
+                        darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+                      }`}
+                      value={item.description}
+                      onChange={(e) => {
+                        const updated = [...quoteItems];
+                        updated[idx].description = e.target.value;
+                        setQuoteItems(updated);
+                      }}
+                    />
+                    <input
+                      type="number"
+                      className={`col-span-4 p-2 rounded-xl border text-xs font-mono text-right ${
+                        darkMode ? 'bg-[#0f1115] border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+                      }`}
+                      value={item.amount}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        const updated = [...quoteItems];
+                        updated[idx].amount = val;
+                        updated[idx].rate = val;
+                        setQuoteItems(updated);
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Subtotal, Tax & Total */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#0f1115] border border-slate-200 dark:border-slate-800 space-y-1 text-xs">
+              <div className="flex items-center justify-between text-slate-400">
+                <span>Subtotal:</span>
+                <span className="font-mono">₹{calculateSubtotal().toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-400">
+                <span>GST ({quoteTaxRate}%):</span>
+                <span className="font-mono">₹{(calculateSubtotal() * (quoteTaxRate / 100)).toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex items-center justify-between font-bold text-sm text-[#00c853] pt-1 border-t border-slate-200 dark:border-slate-800">
+                <span>Total Proposal Valuation:</span>
+                <span className="font-mono">₹{calculateTotal().toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowQuoteModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-xl bg-[#00c853] hover:bg-[#00b047] text-white text-xs font-bold shadow-md shadow-[#00c853]/20"
+              >
+                Issue Formal Quotation
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>
