@@ -1,0 +1,50 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Diagnostic / Runtime binaries
+cloudflared.exe
+*.exe
+*.apk
+*.dmg
+*.zip
+*.tar.gz
+
+# Dependency directories
+node_modules/
+
+# Production build outputs
+dist/
+dist-package/
+dist-electron/
+build/
+
+# Temporary extractions
+extracted-digiworku/
+
+# Environment files & Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS Files
+.DS_Store
+Thumbs.db
